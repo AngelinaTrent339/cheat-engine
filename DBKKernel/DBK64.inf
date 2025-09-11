@@ -3,16 +3,41 @@
 ;
 
 [Version]
-Signature="$WINDOWS NT$"
+Signature;-------------- Service;--- WE64_Device Coinstaller installation ------
+;
+
+[WE64_Device.NT.CoInstallers]
+AddReg=WE64_Device_CoInstaller_AddReg
+CopyFiles=WE64_Device_CoInstaller_CopyFiles
+
+[WE64_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[WE64_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[WE64_Device.NT.Wdf]
+KmdfService =  WE64, WE64_wdfsect
+[WE64_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$E64_Device.NT.Services]
+AddService = WE64,%SPSVCINST_ASSOCSERVICE%, WE64_Service_Inst
+
+; -------------- WE64 driver install sections
+[WE64_Service_Inst]
+DisplayName    = %WE64.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\WE64.sysNT$"
 Class=System
 ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider=%ManufacturerName%
-CatalogFile=DBK64.cat
+CatalogFile=WE64.cat
 DriverVer= ; TODO: set DriverVer in stampinf property pages
 
 [DestinationDirs]
 DefaultDestDir = 12
-DBK64_Device_CoInstaller_CopyFiles = 11
+WE64_Device_CoInstaller_CopyFiles = 11
 
 ; ================= Class section =====================
 
@@ -20,7 +45,7 @@ DBK64_Device_CoInstaller_CopyFiles = 11
 1 = %DiskName%,,,""
 
 [SourceDisksFiles]
-DBK64.sys  = 1,,
+WE64.sys  = 1,,
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
 
 ;*****************************************
@@ -31,13 +56,13 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with
 %ManufacturerName%=Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
-%DBK64.DeviceDesc%=DBK64_Device, Root\DBK64 ; TODO: edit hw-id
+%WE64.DeviceDesc%=WE64_Device, Root\WE64 ; TODO: edit hw-id
 
-[DBK64_Device.NT]
+[WE64_Device.NT]
 CopyFiles=Drivers_Dir
 
 [Drivers_Dir]
-DBK64.sys
+WE64.sys
 
 ;-------------- Service installation
 [DBK64_Device.NT.Services]
@@ -72,8 +97,8 @@ KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 SPSVCINST_ASSOCSERVICE= 0x00000002
-ManufacturerName="Cheat Engine" ;TODO: Replace with your manufacturer name
+ManufacturerName="Work Engine" ;TODO: Replace with your manufacturer name
 ClassName="System" ; TODO: edit ClassName
-DiskName = "DBK64 Installation Disk"
-DBK64.DeviceDesc = "DBK64 Device"
-DBK64.SVCDESC = "DBK64 Service"
+DiskName = "WE64 Installation Disk"
+WE64.DeviceDesc = "WE64 Device"
+WE64.SVCDESC = "WE64 Service"

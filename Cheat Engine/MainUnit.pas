@@ -3994,8 +3994,8 @@ end;
 procedure TMainForm.miSignTableClick(Sender: TObject);
 begin
   {$ifdef windows}
-  if Opendialog1.Execute then
-    signTablefile(opendialog1.filename);
+  // Signature functionality disabled
+  ShowMessage('Table signing has been disabled');
   {$endif}
 end;
 

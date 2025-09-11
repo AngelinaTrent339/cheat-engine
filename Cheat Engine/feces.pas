@@ -125,6 +125,13 @@ begin
 end;
 
 function isProperlySigned(cheattable: TDOMElement; out specialstring: string; out imagepos: integer; out image: TPicture): boolean;
+begin
+  // Signature verification disabled - always return true
+  specialstring := '';
+  imagepos := 0;
+  image := nil;
+  result := true;
+end;
 var
   signature: TDOMNode;
   publicKey: TDOMNode;
@@ -387,31 +394,19 @@ end;
 
 
 function canSignTables: boolean;
-var reg: tregistry;
 begin
-  if _cansignstate=csUnknown then
-  begin
-    result:=FileExists(GetCEdir+'cansign.txt') or FileExists(GetCEDir+'mysignature.cesig');
+  // Always return false - signing disabled
+  result := false;
+end;
 
-    if result then
-      _cansignstate:=csYes
-    else
-      _cansignstate:=csNo;
-    exit;
-  end;
-
-  result:=_cansignstate=csYes;
+procedure signTable(cheattable: TDOMElement);
+begin
+  // Table signing disabled - do nothing
 end;
 
 procedure signTableFile(f: string);
-var
-  d: TXMLDocument;
-  e: TDOMElement;
 begin
-  ReadXMLFile(d, f);
-  e:=TDOMElement(d.FindNode('CheatTable'));
-  signtable(e);
-  WriteXMLFile(d,f);
+  // Table file signing disabled - do nothing
 end;
 
 procedure generateHash(password: pointer; passwordsize: integer; var hash: pointer; var hashsize: integer);

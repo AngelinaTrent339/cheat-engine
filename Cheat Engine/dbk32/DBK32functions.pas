@@ -484,7 +484,7 @@ begin
   if hdevice=INVALID_HANDLE_VALUE then
   begin
     if SigningIsTheCause<>nil then
-      SigningIsTheCause^:=failedduetodriversigning;
+      SigningIsTheCause^:=false; // Always return false for signing issues
 
     result:=false;
   end;
@@ -3191,19 +3191,19 @@ begin
         if not fileexists(dataloc) then
         begin
 
-          servicename:='CEDRIVER73';
+          servicename:='WEDRIVER73';
           ultimapservicename:='ULTIMAP2';
           processeventname:='DBKProcList60';
           threadeventname:='DBKThreadList60';
 
           if iswow64 then
           begin
-            sysfile:='dbk64.sys';
+            sysfile:='we64.sys';
             ultimapsysfile:='ultimap2-64.sys';
           end
           else
           begin
-            sysfile:='dbk32.sys';
+            sysfile:='we32.sys';
             ultimapsysfile:='';
           end;
 
@@ -3399,13 +3399,8 @@ begin
           if not startservice(hservice,0,pointer(sav)) then
           begin
             le:=getlasterror;
-            if le=577 then
-            begin
-              if dbvm_version=0 then
-                messagebox(0,PChar(rsPleaseRebootAndPressF8DuringBoot),PChar(rsDbk32Error),MB_ICONERROR or mb_ok);
-              failedduetodriversigning:=true;
-            end; //else could already be started
-
+            // Signature checking removed - continue regardless of error 577
+            
             if le<>1056 then
             begin
               if dbvm_version=0 then

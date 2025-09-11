@@ -76,165 +76,18 @@ Caller is responsible for calling ExFreePool on the buffer
 
 NTSTATUS CheckSignature(PVOID buffer, DWORD buffersize, PVOID sig, DWORD sigsize)
 /*
-Calculates a hash from the buffer and then checks the signature
+Signature checking disabled - always return success
 */
 {
-	NTSTATUS s=STATUS_UNSUCCESSFUL;
-	BCRYPT_ALG_HANDLE hashAlgoritm;
-
-	s=BCryptOpenAlgorithmProvider(&hashAlgoritm, BCRYPT_SHA512_ALGORITHM, NULL, 0); 
-	if (s==STATUS_SUCCESS)
-	{
-		DbgPrint("Created a hash algoritm\n");
-		if (s==STATUS_SUCCESS)
-		{
-			DWORD objectlength;
-			ULONG size;
-			s=BCryptGetProperty(hashAlgoritm, BCRYPT_OBJECT_LENGTH, (PUCHAR)&objectlength, sizeof(DWORD), &size, 0);  
-			if (s==STATUS_SUCCESS)
-			{
-				BCRYPT_HASH_HANDLE hHash;
-				PUCHAR pbHashObject=ExAllocatePool(PagedPool, objectlength);
-
-				if (pbHashObject)
-				{
-					s=BCryptCreateHash(hashAlgoritm, &hHash, pbHashObject, objectlength, (PUCHAR)NULL, 0, 0); 
-					if (s==STATUS_SUCCESS)
-					{
-						s=BCryptHashData(hHash, buffer, buffersize, 0);  
-						if (s==STATUS_SUCCESS)
-						{
-							DWORD hashlength;
-							s=BCryptGetProperty(hashAlgoritm, BCRYPT_HASH_LENGTH, (PUCHAR)&hashlength, sizeof(DWORD), &size, 0); 
-							if (s==STATUS_SUCCESS)
-							{
-								PUCHAR pbHashBuffer=ExAllocatePool(PagedPool, hashlength);
-								if (pbHashBuffer)
-								{
-									s=BCryptFinishHash(hHash, pbHashBuffer, hashlength, 0);
-									if (s==STATUS_SUCCESS)
-									{
-										BCRYPT_ALG_HANDLE SignAlgoritm;															
-										s=BCryptOpenAlgorithmProvider(&SignAlgoritm, BCRYPT_ECDSA_P521_ALGORITHM, NULL, 0);   
-
-										if (s==STATUS_SUCCESS)
-										{
-											BCRYPT_KEY_HANDLE hKey;
-											s=BCryptImportKeyPair(SignAlgoritm, 0, BCRYPT_ECCPUBLIC_BLOB, &hKey, publicKey, 140, 0);   
-											if (s==STATUS_SUCCESS)
-											{
-												s=BCryptVerifySignature(hKey, NULL, pbHashBuffer, hashlength, sig, sigsize, 0);
-												if (s==STATUS_SUCCESS)
-												{
-													DbgPrint("Valid signature");
-												}
-												else
-												{													
-													//Invalid signature. Wait a bit before returning
-													LARGE_INTEGER timeout;
-													timeout.QuadPart=-(LONGLONG)2* 10 * 1000 * 1000; // WDF_REL_TIMEOUT_IN_SEC(2);
-													KeDelayExecutionThread(UserMode, FALSE, &timeout);
-													DbgPrint("Signature failure: %x\n", s);																	
-												}
-
-												BCryptDestroyKey(hKey);
-											}
-											else
-												DbgPrint("ImportKeyPair fail\n");
-
-											BCryptCloseAlgorithmProvider(SignAlgoritm,0);
-
-										}
-										else
-											DbgPrint("OpenSignAlgoritm fail\n");
-									}
-									else
-										DbgPrint("FinishHash Failed\n");
-
-									ExFreePool(pbHashBuffer);
-								}
-								else
-									DbgPrint("Failed allocating pbHashBuffer\n");
-							}
-							else
-								DbgPrint("BCRYPT_OBJECT_LENGTH hash failure\n");
-
-						}
-						else
-							DbgPrint("Failure hashing data\n");
-
-						BCryptDestroyHash(hHash); 
-					}
-					else
-						DbgPrint("CreateHash failed\n");
-
-					ExFreePool(pbHashObject);
-				}
-				else
-					DbgPrint("Failure allocating room for pbHashObject\n");
-
-			}
-			else
-				DbgPrint("BCRYPT_OBJECT_LENGTH alg failure\n");
-		}
-
-		BCryptCloseAlgorithmProvider(hashAlgoritm,0);
-	}
-	else
-		DbgPrint("Failed getting a hash algoritm\n");
-
-	//DbgPrint("returning %x\n", s);
-	return s;
+	DbgPrint("Signature checking disabled - allowing all signatures\n");
+	return STATUS_SUCCESS;
 }
 
 NTSTATUS TestProcess(PIMAGE_DOS_HEADER buf, DWORD size)
 {
-	UINT_PTR maxAddress = (UINT_PTR)buf + size;
-	if (buf->e_magic != IMAGE_DOS_SIGNATURE)
-		return STATUS_UNSUCCESSFUL;
-
-	if ((DWORD)buf->e_lfanew >= size)
-		return STATUS_UNSUCCESSFUL;
-
-	PIMAGE_NT_HEADERS nth = (PIMAGE_NT_HEADERS)((UINT_PTR)buf + buf->e_lfanew);
-	if (nth->Signature != IMAGE_NT_SIGNATURE)
-		return STATUS_UNSUCCESSFUL;
-
-	PIMAGE_SECTION_HEADER sections = IMAGE_FIRST_SECTION(nth);
-	if ((UINT_PTR)sections >= maxAddress)
-		return STATUS_UNSUCCESSFUL;
-
-	int i;
-	for (i = 0; i < nth->FileHeader.NumberOfSections; i++)
-	{
-		if (strcmp((char *)sections[i].Name, ".text") == 0)
-		{
-			if (((UINT_PTR)buf + sections[i].PointerToRawData + sections[i].SizeOfRawData) >= maxAddress)
-				return STATUS_UNSUCCESSFUL;
-
-			//BSOD on purpose if this isn't a match
-			if (RtlCompareMemory((void*)(0x00400000 + sections[i].VirtualAddress), (void*)((UINT_PTR)buf + sections[i].PointerToRawData), sections[i].SizeOfRawData) == sections[i].SizeOfRawData)
-			{
-				//seems ok. Confirm the caller is from this .text section
-
-				UINT_PTR startaddress;
-				DWORD length;
-				if (ZwQueryInformationThread(ZwCurrentThread(), (THREADINFOCLASS)ThreadQuerySetWin32StartAddress, &startaddress, sizeof(startaddress), &length) == STATUS_SUCCESS)
-				{
-					if ((startaddress >= (0x00400000 + sections[i].VirtualAddress)) && (startaddress < (0x00400000 + sections[i].VirtualAddress + sections[i].SizeOfRawData)))
-						return STATUS_SUCCESS;
-					else
-						return STATUS_UNSUCCESSFUL;
-				}
-				else
-					return STATUS_UNSUCCESSFUL;
-			}
-			else
-				return STATUS_UNSUCCESSFUL;
-		}
-	}
-
-	return STATUS_UNSUCCESSFUL;
+	// Process verification disabled - always return success
+	DbgPrint("Process verification disabled - allowing all processes\n");
+	return STATUS_SUCCESS;
 }
 
 NTSTATUS CheckSignatureOfFile(PUNICODE_STRING originalpath, BOOL isProcess)
@@ -301,17 +154,12 @@ NTSTATUS CheckSignatureOfFile(PUNICODE_STRING originalpath, BOOL isProcess)
 
 NTSTATUS SecurityCheck(void)
 /*
-Checks the current process for a valid signature
+Security checking disabled - always return success
 */
 {
-
-	NTSTATUS s=STATUS_UNSUCCESSFUL;
-	char *buffer[MAX_PATH*2+sizeof(UNICODE_STRING)];
-	PUNICODE_STRING path=(PUNICODE_STRING)&buffer[0];
-	ULONG length;
-
-	if (KeGetCurrentIrql() != PASSIVE_LEVEL)
-		return STATUS_UNSUCCESSFUL;
+	DbgPrint("Security check disabled - allowing all processes\n");
+	return STATUS_SUCCESS;
+}
 
 
 				

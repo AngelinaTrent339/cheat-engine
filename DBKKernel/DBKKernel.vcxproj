@@ -167,28 +167,28 @@
   <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <TargetName>DBK32</TargetName>
+    <TargetName>WE32</TargetName>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
-    <OutDir>..\Cheat Engine\bin\</OutDir>
+    <OutDir>..\Work Engine\bin\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
-    <OutDir>..\Cheat Engine\bin\</OutDir>
-    <TargetName>DBK32</TargetName>
+    <OutDir>..\Work Engine\bin\</OutDir>
+    <TargetName>WE32</TargetName>
     <TimeStampServer>http://timestamp.globalsign.com/?signature=sha2</TimeStampServer>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release without sig|Win32'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
-    <OutDir>..\Cheat Engine\bin\</OutDir>
-    <TargetName>DBK32</TargetName>
+    <OutDir>..\Work Engine\bin\</OutDir>
+    <TargetName>WE32</TargetName>
     <TimeStampServer>http://timestamp.globalsign.com/scripts/timstamp.dll</TimeStampServer>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <TargetName>DBK64</TargetName>
-    <OutDir>..\Cheat Engine\bin\</OutDir>
+    <TargetName>WE64</TargetName>
+    <OutDir>..\Work Engine\bin\</OutDir>
     <Inf2CatUseLocalTime>false</Inf2CatUseLocalTime>
     <Inf2CatVerbose>true</Inf2CatVerbose>
     <TimeStampServer>http://timestamp.globalsign.com/?signature=sha2</TimeStampServer>
@@ -197,15 +197,15 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <TimeStampServer>http://timestamp.globalsign.com/?signature=sha2</TimeStampServer>
-    <OutDir>..\Cheat Engine\bin\</OutDir>
-    <TargetName>DBK64</TargetName>
+    <OutDir>..\Work Engine\bin\</OutDir>
+    <TargetName>WE64</TargetName>
     <Inf2CatUseLocalTime>false</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release without sig|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <TimeStampServer>http://timestamp.globalsign.com/?signature=sha2</TimeStampServer>
-    <OutDir>..\Cheat Engine\bin\</OutDir>
-    <TargetName>DBK64</TargetName>
+    <OutDir>..\Work Engine\bin\</OutDir>
+    <TargetName>WE64</TargetName>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
     <EnableInf2cat>false</EnableInf2cat>
     <Inf2CatNoCatalog>true</Inf2CatNoCatalog>
