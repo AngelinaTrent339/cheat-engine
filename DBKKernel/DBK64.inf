@@ -103,3 +103,4 @@ ClassName="System" ; TODO: edit ClassName
 DiskName = "WE64 Installation Disk"
 WE64.DeviceDesc = "WE64 Device"
 WE64.SVCDESC = "WE64 Service"
+DBK64.SVCDESC = "DBK64 Service"

@@ -3207,9 +3207,9 @@ begin
             ultimapsysfile:='';
           end;
 
-          vmx_p1_txt:='76543210';
-          vmx_p2_txt:='fedcba98';
-          vmx_p3_txt:='90909090';
+          vmx_p1_txt:='A7B9C2E4F6D8A1B3';
+          vmx_p2_txt:='5E8A1C7F';
+          vmx_p3_txt:='9F3E7A5B2C4D8E1A';
 
         end
         else

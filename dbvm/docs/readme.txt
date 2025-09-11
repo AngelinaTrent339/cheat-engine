@@ -1,10 +1,11 @@
 Write vmdisk.img to a floppy disk or burn vmcd.iso to cd and boot off it. 
 When it's done loading remove the disk and your system will boot further
 
-To make use of vmcall you need to provide it with 2 passwords, the defaults
+To make use of vmcall you need to provide it with 3 passwords, the defaults
 are:
-password1 : 0x76543210
-password2 : 0xfedcba98
+password1 : 0xA7B9C2E4F6D8A1B3
+password2 : 0x5E8A1C7F
+password3 : 0x9F3E7A5B2C4D8E1A
 
 But can be changed during runtime.
 
