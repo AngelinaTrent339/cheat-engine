@@ -3,7 +3,13 @@
 ;
 
 [Version]
-Signature;-------------- Service;--- WE64_Device Coinstaller installation ------
+Signature="$Windows NT$"
+Class=System
+ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider=%ManufacturerName%
+CatalogFile=WE64.cat
+DriverVer= ; TODO: set DriverVer in stampinf property pages
+
 ;
 
 [WE64_Device.NT.CoInstallers]
@@ -19,7 +25,9 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
 [WE64_Device.NT.Wdf]
 KmdfService =  WE64, WE64_wdfsect
 [WE64_wdfsect]
-KmdfLibraryVersion = $KMDFVERSION$E64_Device.NT.Services]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[WE64_Device.NT.Services]
 AddService = WE64,%SPSVCINST_ASSOCSERVICE%, WE64_Service_Inst
 
 ; -------------- WE64 driver install sections
@@ -28,12 +36,7 @@ DisplayName    = %WE64.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %12%\WE64.sysNT$"
-Class=System
-ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
-Provider=%ManufacturerName%
-CatalogFile=WE64.cat
-DriverVer= ; TODO: set DriverVer in stampinf property pages
+ServiceBinary  = %12%\WE64.sys
 
 [DestinationDirs]
 DefaultDestDir = 12
