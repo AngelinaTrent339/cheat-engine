@@ -115,7 +115,7 @@ begin
       while (i>0) and (FullProcessname[i-1]<>'\') do dec(i);
       processname:=copy(FullProcessName,i,length(FullProcessname)-i+1);
 
-      if (uppercase(processname)='CHEAT ENGINE SERVER.EXE') or (uppercase(processname)='CESERVER.EXE') or (uppercase(processname)='CHEATENGINE.EXE') or (uppercase(processname)='CHEAT ENGINE.EXE') then
+      if (uppercase(processname)='WOKE ENGINE SERVER.EXE') or (uppercase(processname)='CESERVER.EXE') or (uppercase(processname)='WOKEENGINE.EXE') or (uppercase(processname)='WOKE ENGINE.EXE') or (uppercase(processname)='CHEATENGINE.EXE') or (uppercase(processname)='CHEAT ENGINE.EXE') then
       begin
         button1.Enabled:=true;
         timer1.enableD:=false;

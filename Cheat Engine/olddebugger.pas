@@ -1488,7 +1488,7 @@ begin
         attachedevent.SetEvent;
 
 
-        err:='Cheat Engine failed to create the process. (Error='+pchar(IntToStr(GetLastError))+')';
+        err:='Woke Engine failed to create the process. (Error='+pchar(IntToStr(GetLastError))+')';
         messagebox(0,pchar(err),'Create failure',mb_ok);
 
         {$ifndef net}
@@ -1548,7 +1548,7 @@ begin
         attachedevent.SetEvent;
 
         {$ifndef net}
-        err:='Cheat Engine failed to attach to the process. (Error='+IntToStr(GetLastError)+')';
+        err:='Woke Engine failed to attach to the process. (Error='+IntToStr(GetLastError)+')';
         messagebox(0,pchar(err),'Attach failure',mb_ok);
         postmessage(mainform.Handle,WM_USER+1,0,0);  //set debuggerthread to nil
         {$endif}

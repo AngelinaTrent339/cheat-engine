@@ -389,7 +389,9 @@ begin
       signed:={$ifdef windows}isProperlySigned(TDOMElement(cheattable), signedstring, imagepos, image){$else}false{$endif};
 
       try
-        tempnode:=CheatTable.Attributes.GetNamedItem('CheatEngineTableVersion');
+        tempnode:=CheatTable.Attributes.GetNamedItem('WokeEngineTableVersion');
+        if tempnode=nil then
+          tempnode:=CheatTable.Attributes.GetNamedItem('CheatEngineTableVersion'); //compatibility fallback
       except
         tempnode:=nil;
       end;
@@ -1016,7 +1018,7 @@ begin
     getmem(buf,size);
     if readprocessmemory(processhandle,pointer(address),buf,size,temp) then
     begin
-      memfile.WriteBuffer(pchar('CHEATENGINE')^,11);
+      memfile.WriteBuffer(pchar('WOKEENGINE')^,10);
       temp:=2; //version
       memfile.WriteBuffer(temp,4);
       a:=address;
@@ -1039,10 +1041,10 @@ begin
   check:=nil;
   try
     memfile:=Tfilestream.Create(filename,fmopenread);
-    getmem(check,12);
-    memfile.ReadBuffer(check^,11);
-    check[11]:=#0;
-    if check='CHEATENGINE' then
+    getmem(check,11);
+    memfile.ReadBuffer(check^,10);
+    check[10]:=#0;
+    if check='WOKEENGINE' then
     begin
       memfile.ReadBuffer(temp,4);
       if temp<>1 then raise exception.Create(Format(rsTheVersionOfIsIncompatibleWithThisCEVersion, [filename]));
@@ -1092,7 +1094,7 @@ begin
     begin
       //not xml
 
-      if X='CHEATENGINE' then
+      if X='WOKEENGINE' then
       begin
          doc:=ConvertCheatTableToXML(filename)
       end
@@ -1215,7 +1217,8 @@ var
   a: TDOMAttr;
 begin
   CheatTable:=TDOMElement(doc.AppendChild(TDOMNode(doc.CreateElement('CheatTable'))));
-  TDOMElement(CheatTable).SetAttribute('CheatEngineTableVersion',IntToStr(CurrentTableVersion));
+  TDOMElement(CheatTable).SetAttribute('WokeEngineTableVersion',IntToStr(CurrentTableVersion));
+  TDOMElement(CheatTable).SetAttribute('CheatEngineTableVersion',IntToStr(CurrentTableVersion)); //compatibility
 
   if mainform.LuaForms.count>0 then
   begin
