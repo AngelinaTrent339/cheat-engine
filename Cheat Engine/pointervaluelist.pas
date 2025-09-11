@@ -768,7 +768,7 @@ var i,c: integer;
   pv: PPointerList;
   lastupdate: qword;
 begin
-  s.WriteByte($ce);
+  s.WriteByte($da);
   s.WriteByte(ScanDataVersion);
 
 

@@ -1674,7 +1674,7 @@ begin
 
 
       ptrfile:=TFileStream.Create(filename, fmCreate);
-      ptrfile.writeByte($ce);
+  ptrfile.writeByte($da);
       ptrfile.writeByte(pointerscanfileversion);
 
       ptrid:=SQLQuery.FieldByName('ptrid').text;

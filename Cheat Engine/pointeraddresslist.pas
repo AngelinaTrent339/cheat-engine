@@ -141,7 +141,9 @@ var
   limit: integer;
 begin
   //create and fill in the pointerlist based on a reversepointerlist
-  if s.ReadByte<>$ce then
+  var sig: byte;
+  sig:=s.ReadByte;
+  if (sig<>$ce) and (sig<>$da) then
     raise exception.create(rsPALInvalidScandataFile);
 
   if s.ReadByte<>ScanDataVersion then raise exception.create(rsPALInvalidScandataVersion);

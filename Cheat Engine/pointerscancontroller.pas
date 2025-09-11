@@ -2382,7 +2382,7 @@ begin
   try
     try
       cehandshakesignature:=ss.ReadByte;
-      if cehandshakesignature<>$ce then
+      if (cehandshakesignature<>$ce) and (cehandshakesignature<>$da) then
         raise TSocketException.create(rsPSCInvalidHandshakeSignature);
 
       password:=ss.ReadAnsiString8;
@@ -4687,7 +4687,7 @@ begin
       begin
         result:=TfileStream.create(filename,fmcreate or fmShareDenyWrite);
 
-        result.writeByte($ce);
+  result.writeByte($da);
         result.writeByte(pointerscanfileversion);
 
         if (pointerlisthandler=nil) then

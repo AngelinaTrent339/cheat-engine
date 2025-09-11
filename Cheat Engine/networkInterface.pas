@@ -363,7 +363,7 @@ begin
     end;
   end
   else
-  if ((handle shr 24) and $ff)= $ce then
+  if (((handle shr 24) and $ff)= $ce) or (((handle shr 24) and $ff)= $da) then
   begin
     CloseHandleCommand.command:=CMD_CLOSEHANDLE;
     CloseHandleCommand.handle:=handle and $ffffff;
@@ -456,7 +456,7 @@ begin
   end;
 
 
-  if ((hSnapshot shr 24) and $ff)= $ce then
+  if (((hSnapshot shr 24) and $ff)= $ce) or (((hSnapshot shr 24) and $ff)= $da) then
   begin
     if isfirst then
       ModulelistCommand.command:=CMD_MODULE32FIRST
@@ -587,7 +587,7 @@ begin
   result:=false;
 
   //OutputDebugString('TCEConnection.Process32Next');
-  if ((hSnapshot shr 24) and $ff)= $ce then
+  if (((hSnapshot shr 24) and $ff)= $ce) or (((hSnapshot shr 24) and $ff)= $da) then
   begin
     //OutputDebugString('Valid network handle');
 
@@ -1016,7 +1016,7 @@ begin
  // log(format('TCEConnection.ReadProcessMemory: Read %d bytes from %p into %p',[nsize, lpBaseAddress, lpBuffer]));
 
 
-  if ((hProcess shr 24) and $ff)= $ce then
+  if (((hProcess shr 24) and $ff)= $ce) or (((hProcess shr 24) and $ff)= $da) then
   begin
    // Log('hProcess is valid');
 
@@ -1075,7 +1075,7 @@ begin
 
     if WriteProcessMemoryBufferCount=0 then
     begin
-      if ((hProcess shr 24) and $ff)= $ce then
+  if (((hProcess shr 24) and $ff)= $ce) or (((hProcess shr 24) and $ff)= $da) then
       begin
         result:=false;
         lpNumberOfBytesWritten:=0;
@@ -1697,7 +1697,7 @@ var Output: packed record
   end;
 begin
   result:=false;
-  if ((hProcess shr 24) and $ff)= $ce then
+  if (((hProcess shr 24) and $ff)= $ce) or (((hProcess shr 24) and $ff)= $da) then
   begin
     input.command:=CMD_STARTDEBUG;
     input.handle:=hProcess and $ffffff;
@@ -1725,7 +1725,7 @@ begin
 
   result:=false;
 
-  if ((hProcess shr 24) and $ff)= $ce then
+  if (((hProcess shr 24) and $ff)= $ce) or (((hProcess shr 24) and $ff)= $da) then
   begin
     input.command:=CMD_CONTINUEFROMDEBUGEVENT;
     input.handle:=hProcess and $ffffff;
@@ -1756,7 +1756,7 @@ var
 begin
   result:=false;
 
-  if ((hProcess shr 24) and $ff)= $ce then
+  if (((hProcess shr 24) and $ff)= $ce) or (((hProcess shr 24) and $ff)= $da) then
   begin
     input.command:=CMD_WAITFORDEBUGEVENT;
     input.handle:=hProcess and $ffffff;
@@ -1799,7 +1799,7 @@ var
 begin
   result:=false;
 
-  if ((hProcess shr 24) and $ff)= $ce then
+  if (((hProcess shr 24) and $ff)= $ce) or (((hProcess shr 24) and $ff)= $da) then
   begin
     input.command:=CMD_SETBREAKPOINT;
     input.handle:=hProcess and $ffffff;
@@ -1834,7 +1834,7 @@ var
 begin
   result:=false;
 
-  if ((hProcess shr 24) and $ff)= $ce then
+  if (((hProcess shr 24) and $ff)= $ce) or (((hProcess shr 24) and $ff)= $da) then
   begin
     input.command:=CMD_REMOVEBREAKPOINT;
     input.handle:=hProcess and $ffffff;
@@ -2660,8 +2660,10 @@ begin
 end;
 
 function TCEConnection.isNetworkHandle(handle: THandle): boolean;
+var t: byte;
 begin
-  result:=((handle shr 24) and $ff)= $ce;
+  t:=(handle shr 24) and $ff;
+  result:=(t=$ce) or (t=$da);
 end;
 
 function TCEConnection.send(buffer: pointer; size: integer): integer;
