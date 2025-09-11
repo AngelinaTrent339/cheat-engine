@@ -75,7 +75,7 @@ extramemory:        dq 0 ;physical address of a contiguous block of physical mem
 extramemorysize:    dq 0 ;number of pages in extramemory
 contiguousmemoryPA: dq 0 ;physical address of a contiguous block of physical memory available for device access
 contiguousmemorysize:dq 0 ;number of pages left in contiguousmemoryPA
-dbvmversion:        dq 11
+dbvmversion:        dq 19
 exportlist:         dq 0
 ;uefibooted:         dq 0 ;if set it means this has to launch the AP cpu's as well
 
@@ -760,10 +760,10 @@ fxrstor [rsp]
 
 mov rsp,rbp
 
-cmp ax,0xce00
+cmp ax,0xda00
 je vmxloop_guestlaunch
 
-cmp ax,0xce01
+cmp ax,0xda01
 je vmxloop_guestresume
 
 cmp al,1  ;returnvalue of 1 = quit vmx
@@ -842,7 +842,7 @@ vmlaunch
 ;restore state of vmm
 
 
-mov dword [fs:0x10],0xce00 ;exitreason 0xce00
+mov dword [fs:0x10],0xda00 ;exitreason 0xda00
 jmp vmxloop_vmexit
 
 vmxloop_guestresume:
@@ -868,7 +868,7 @@ vmresume
 db 0xf1 ;debug
 
 ;never executed unless on error
-mov dword [fs:0x10],0xce01 ;exitreason 0xce01  (resume fail)
+mov dword [fs:0x10],0xda01 ;exitreason 0xda01  (resume fail)
 jmp vmxloop_vmexit
 
 vmxloop_exitvm:  ;(esp-68)
@@ -1384,7 +1384,7 @@ global stopautomation
 ;void stopautomation(void);
 ;-------------------------;
 stopautomation:
-mov rax,0xcececece
+mov rax,0xdadadada
 VMCALL
 ret
 db 0xcc
@@ -3381,8 +3381,8 @@ db 0x90
 db 0x90
 
 db 0xea
-db 0xce
-db 0xce
+db 0xda
+db 0xda
 db 0xaa
 db 0xbb
 

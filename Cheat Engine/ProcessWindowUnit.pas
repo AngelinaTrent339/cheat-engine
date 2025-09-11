@@ -851,11 +851,11 @@ begin
   ProcessSelected:=true;
 
   {$ifdef windows}
-  if (processid=0) and ((formsettings.cbKernelReadWriteProcessMemory.checked) or (dbvm_version>=$ce000004)) then
+  if (processid=0) and ((formsettings.cbKernelReadWriteProcessMemory.checked) or (dbvm_version>=$da000004)) then
   begin
     ProcessHandler.processid:=$FFFFFFFF;
 
-    if dbvm_version>=$ce000004 then
+    if dbvm_version>=$da000004 then
       DBKPhysicalMemoryDBVM
     else
       DBKPhysicalMemory;
@@ -1345,7 +1345,7 @@ begin
       caption:=rsProcessList;
 
     {$ifdef windows}
-    if formsettings.cbKernelReadWriteProcessMemory.checked or (dbvm_version>=$ce000004) then //driver is active
+    if formsettings.cbKernelReadWriteProcessMemory.checked or (dbvm_version>=$da000004) then //driver is active
     begin
       if TabHeader.TabIndex<=2 then //other script are on their own
         processlist.Items.Insert(0, '00000000-['+rsPhysicalMemory+']');

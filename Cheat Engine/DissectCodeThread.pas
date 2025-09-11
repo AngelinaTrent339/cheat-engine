@@ -317,7 +317,7 @@ begin
   fs:=tfilestream.create(filename, fmCreate);
 
   try
-    fs.WriteDWord($ce00dc02);  //cheat engine dissect code v1
+    fs.WriteDWord($da00dc02);  //cheat engine dissect code v1
     saveModuleListToStream(fs);
     saveListToStream(calllist, fs);
     saveListToStream(unconditionaljumplist, fs);
@@ -381,10 +381,10 @@ begin
 
   try
     version:=fs.ReadDWord;
-    if version<$ce00dc01 then
+    if version<$da00dc01 then
       raise exception.create(rsInvalidDissectCodeFile);
 
-    if version>=$ce00dc02 then
+    if version>=$da00dc02 then
       loadModuleListFromStream(fs);
 
     loadListFromStream(calllist, fs);

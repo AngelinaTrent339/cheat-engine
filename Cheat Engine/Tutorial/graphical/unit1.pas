@@ -189,7 +189,7 @@ var
   i: integer;
 begin
   mem:=pword(codebase);
-  r:=$cececece;
+  r:=$dadadada;
   for i:=0 to (codesize div 2)-1 do
   begin
     r:=r xor mem[i];

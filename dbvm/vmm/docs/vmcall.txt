@@ -11,7 +11,7 @@ ULONG command
 
 command:
 0: verify vmm
-returns 0xcexxxxxxxx in eax , where xxxxxx=version number of vmm
+returns 0xdaxxxxxxxx in eax , where xxxxxx=version number of vmm
 
 1: Change password
 params:
@@ -197,4 +197,4 @@ QWORD addressofthestore
 
 -----
 note:
-result of 0xcedead means that the function was not implemented(yet)
+result of 0xdadead means that the function was not implemented(yet)

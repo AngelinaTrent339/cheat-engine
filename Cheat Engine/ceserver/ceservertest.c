@@ -516,7 +516,7 @@ void *CESERVERTEST_DEBUGGERTHREAD(void *arg)
 
           debug_log("devent.debugevent=%d (thread %d)\n", devent.debugevent, devent.threadid);
 
-        //  cenet_setBreakpoint(fd, pHandle, devent.threadid,0xce0000, 3,4,0);
+        //  cenet_setBreakpoint(fd, pHandle, devent.threadid,0xda0000, 3,4,0);
 
 
          // cenet_setBreakpoint(fd, pHandle, -1, 0xa000, 3, 4);

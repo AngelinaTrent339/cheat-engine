@@ -301,7 +301,7 @@ void InitializeDBVM(UINT64 vmm, int vmmsize)
       int i;
       unsigned char *original=(unsigned char *)enterVMM;
       i=0;
-      while ((i<4096) && ((original[i]!=0xce) || (original[i+1]!=0xce) || (original[i+2]!=0xce) || (original[i+3]!=0xce) || (original[i+4]!=0xce)))
+      while ((i<4096) && ((original[i]!=0xda) || (original[i+1]!=0xda) || (original[i+2]!=0xda) || (original[i+3]!=0xda) || (original[i+4]!=0xda)))
         i++;
 
       Print(L"size is %d\n",i);

@@ -66,14 +66,14 @@ begin
         if isfirst then
         begin
           //create process
-          er.ExceptionCode:=$ce000000; // $ce000000=create process (just made up)
+          er.ExceptionCode:=$da000000; // $da000000=create process (just made up)
 
           InternalHandler(@ep,lpte.th32ThreadID); //I don't care what the return value is
           isfirst:=false;
         end else
         begin
           //create thread
-          er.ExceptionCode:=$ce000001;
+          er.ExceptionCode:=$da000001;
           InternalHandler(@ep,lpte.th32ThreadID);
         end;
       end;
@@ -161,7 +161,7 @@ begin
     exit;
   end;
 
-  VEHSharedMem.VEHVersion:=$cece0000+VEHVERSION;
+  VEHSharedMem.VEHVersion:=$dada0000+VEHVERSION;
 
 
   OutputDebugString(pchar('HasDebugEvent='+inttohex(VEHSharedMem.HasDebugEvent,8)));

@@ -28,7 +28,7 @@ type TVEHDebugSharedMem=packed record
   ThreadID: DWORD;
   ThreadWatchMethod: QWORD;
   ThreadWatchMethodConfig: QWORD; //each bit contains an boolean option (for threadpoll, the only one implemented, bit 0 means simulate thread create contexts)
-  VEHVersion: DWORD; //0xCECE####  , set by the DLL
+  VEHVersion: DWORD; //0xDADA####  , set by the DLL
   HeartBeat: DWORD; //value that constantly changes as long as CE is alive
 
   NoBreakListSize: QWORD;   //number of entries in the nobreaklist

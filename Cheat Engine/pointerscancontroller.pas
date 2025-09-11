@@ -1751,7 +1751,7 @@ begin
             pathqueue[pathqueuelength]:=overflowqueue[i];
             inc(pathqueuelength);
 
-            overflowqueue[i].tempresults[0]:=$cece;
+            overflowqueue[i].tempresults[0]:=$dada;
             inc(addedToQueue);
 
           end else break;
@@ -3538,14 +3538,14 @@ begin
     begin
       setlength(pathqueue[i].tempresults, maxlevel+2);
       for j:=0 to maxlevel+1 do
-        pathqueue[i].tempresults[j]:=$cececece;
+        pathqueue[i].tempresults[j]:=$dadacece;
 
 
       if noLoop then
       begin
         setlength(pathqueue[i].valuelist, maxlevel+2);
         for j:=0 to maxlevel+1 do
-          pathqueue[i].valuelist[j]:=qword($cececececececece);
+          pathqueue[i].valuelist[j]:=qword($dadacececececece);
       end;
     end;
 

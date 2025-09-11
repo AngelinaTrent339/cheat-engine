@@ -327,8 +327,9 @@ void vmm_entry(void)
    * 14=properly emulate debug step
    * 15=some amd fixes/contiguous memory param/dbvmbp
    * 16=3th vmcall password
+   * 19=signature update
    */
-  dbvmversion=16;
+  dbvmversion=19;
   int1redirection=1; //redirect to int vector 1 (might change this to the perfcounter interrupt in the future so I don't have to deal with interrupt prologue/epilogue)
   int3redirection=3;
   int14redirection=14;
@@ -772,7 +773,7 @@ AfterBPTest:
   //create a page filled with 0xff (for faking non present memory access)
   ffpage=malloc(4096);
   for (i=0; i<4096; i++)
-    ffpage[i]=0xce;
+    ffpage[i]=0xda;
 
   sendstringf("Physical address of ffpage=%6\n\r",(UINT64)VirtualToPhysical(ffpage));
 
@@ -1155,7 +1156,7 @@ void reboot(int skipAPTerminationWait)
 
   sendstring("Calling quickboot\n\r");
 
-  if (skipAPTerminationWait==0xcedead) //PSOD
+  if (skipAPTerminationWait==0xdadead) //PSOD
     *(unsigned char *)0x7c0e=0xff;
   else
     *(unsigned char *)0x7c0e=bootdisk;

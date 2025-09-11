@@ -65,7 +65,7 @@ int checkmem(unsigned char *x, int len)
 {
   int i;
   for (i=0; i<len; i++)
-    if (x[i]!=0xce)
+    if (x[i]!=0xda)
       return 1;
 
   return 0;
@@ -3293,7 +3293,7 @@ VMSTATUS ept_watch_retrievelog(int ID, QWORD results, DWORD *resultSize, DWORD *
     copymem(destination, source, blocksize);
     unmapVMmemory(destination, blocksize);
 #ifdef MEMORYCHECK
-    //mark log as 0xce
+    //mark log as 0xda
     QWORD a,b;
 
     b=(QWORD)eptWatchList[ID].Log+sizeof(PageEventListDescriptor);
@@ -3302,7 +3302,7 @@ VMSTATUS ept_watch_retrievelog(int ID, QWORD results, DWORD *resultSize, DWORD *
     {
       a=(QWORD)source+x;
       if (a>=b)
-        source[x]=0xce;
+        source[x]=0xda;
     }
 #endif
 

@@ -87,7 +87,7 @@ begin
   ep.ExceptionRecord:=@er;
   er.NumberParameters:=0;
 
-  er.ExceptionCode:=$ce000001;
+  er.ExceptionCode:=$da000001;
   er.ExceptionRecord:=nil;
   OutputDebugString('Emulating CreateThreadEvent');
 
@@ -123,7 +123,7 @@ begin
   ep.ExceptionRecord:=@er;
   er.NumberParameters:=0;
 
-  er.ExceptionCode:=$ce000002; //destroythread
+  er.ExceptionCode:=$da000002; //destroythread
   InternalHandler(@ep,threadid);
 end;
 

@@ -46,7 +46,7 @@ var
 threadvar
   actualcount: pinteger;
 
-function antidebug1: integer; stdcall; //always returns 0xcececece
+function antidebug1: integer; stdcall; //always returns 0xdadadada
 begin
   result:=GetTickCount64;
 end;
@@ -248,11 +248,11 @@ begin
 
 
         {$ifdef cpu64}
-        c^.rax:=$cececece;
+        c^.rax:=$dadacece;
         c^.rip:=pqword(c^.Rsp)^; //change rip back to the caller
         c^.rsp:=c^.rsp+8; //pop the return of the stack
         {$else}
-        c^.eax:=$cececece;
+        c^.eax:=$dadacece;
         c^.eip:=pdword(c^.esp)^; //change rip back to the caller
         c^.esp:=c^.esp+4; //pop the return address of the stack
 
@@ -371,7 +371,7 @@ begin
     end;
   end;
 
-  d:=integer((antidebug1 xor dword($cececece))+antidebug2($ce));
+  d:=integer((antidebug1 xor dword($dadacece))+antidebug2($da));
 
   if (c>20) or (d<>$1ce) then
   begin
@@ -426,7 +426,7 @@ begin
   context:=Align(contextmem,16);
 
   getmem(actualcount, 4+random(64));
-  actualcount^:=integer(dword((20 shl 13) xor $cececece));
+  actualcount^:=integer(dword((20 shl 13) xor $dadacece));
 
   getmem(c2,4+random(64));
   c2^:=integer(dword(20 xor $deadf123));

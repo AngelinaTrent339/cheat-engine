@@ -4342,9 +4342,9 @@ int handleVMEvent_internal(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FX
       return result;
     }
 
-    case 19 ... 27 : //VMX instruction called
-    case 0xce00: //special exit reasons (vmresume/vmlaunch failures)
-    case 0xce01:
+  case 19 ... 27 : //VMX instruction called
+  case 0xda00: //special exit reasons (vmresume/vmlaunch failures)
+  case 0xda01:
     {
       ddDrawRectangle(0,DDVerticalResolution-100,100,100,0xff0000);
       //while (1);

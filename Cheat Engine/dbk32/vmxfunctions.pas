@@ -120,7 +120,7 @@ const
 
   //new debuger flags
 
-  EXCEPTION_DBVM_BREAKPOINT = $CEDB0001;
+  EXCEPTION_DBVM_BREAKPOINT = $DADB0001;
 
 type
   _CLIENT_ID = record
@@ -1068,7 +1068,7 @@ begin
   try
     result:=vmcall(@vmcallinfo);
 
-    if (result shr 24)<>$ce then
+  if (result shr 24)<>$da then
     begin
       //OutputDebugString('Invalid vmx');
       result:=0;
@@ -3406,7 +3406,7 @@ var cc: dword;
     x: TInput;
 begin
   {$IFDEF windows}
-  if (dbvm_version>$ce000000) then //tell the driver it can use vmcall instructions
+  if (dbvm_version>$da000000) then //tell the driver it can use vmcall instructions
   begin
     OutputDebugString('vmx_enabled=TRUE');
 

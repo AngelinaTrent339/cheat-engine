@@ -186,8 +186,8 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
   for (i=7; i<0x10000; i+=8)
   {
-	  outportb(i,0xce);
-	  if (inportb(i)==0xce)
+	  outportb(i,0xda);
+	  if (inportb(i)==0xda)
 	  {
 		  counter++;
 		  Print(L"%d: Correct at %x: ",counter, i);
@@ -217,7 +217,7 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
   Print(L"Done testing");
 
-  outportb(0x80,0xce);
+  outportb(0x80,0xda);
 
 
   SerialPort=0xff10;
@@ -341,7 +341,7 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 
 
-  SetMem(filepath, 128*2,0xce);
+  SetMem(filepath, 128*2,0xda);
 
 
   EFI_GUID lip=LOADED_IMAGE_PROTOCOL;
@@ -396,7 +396,7 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
   for (i=0; i<128; i++)
   {
     Print(L"%x ",*(unsigned char *)(base+i));
-    //*(char *)i=0xce;
+    //*(char *)i=0xda;
   }
 
   Print(L"\n");

@@ -204,13 +204,13 @@ weee2:
 		__emit 0x50  //-|
 		__emit 0x00  //-|
 
-		__emit 0xce
-		__emit 0xce
-		__emit 0xce
-		__emit 0xce
-		__emit 0xce
-		__emit 0xce
-		__emit 0xce
+		__emit 0xda
+		__emit 0xda
+		__emit 0xda
+		__emit 0xda
+		__emit 0xda
+		__emit 0xda
+		__emit 0xda
 
 	}
 }
@@ -495,7 +495,7 @@ Runs at passive mode
 						//copy memory
 
 						i = 0;
-						while ((i<4096) && ((original[i] != 0xce) || (original[i + 1] != 0xce) || (original[i + 2] != 0xce) || (original[i + 3] != 0xce) || (original[i + 4] != 0xce)))
+						while ((i<4096) && ((original[i] != 0xda) || (original[i + 1] != 0xda) || (original[i + 2] != 0xda) || (original[i + 3] != 0xda) || (original[i + 4] != 0xda)))
 							i++;
 
 						DbgPrint("size is %d", i);

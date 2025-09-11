@@ -232,7 +232,7 @@ type
 
   end;
 
-const EXCEPTION_GDB_BREAKPOINT=$CEDB0002;
+const EXCEPTION_GDB_BREAKPOINT=$DADB0002;
 
 
 implementation

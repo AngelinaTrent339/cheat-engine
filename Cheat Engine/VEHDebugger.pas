@@ -109,7 +109,7 @@ begin
   if owner.VEHDebugView.VEHVersion=0 then
     MessageDlg(rsTheVEHDllSeemsToHaveFailedToLoad, mtError, [mbok], 0)
   else
-    MessageDlg(format(rsWrongVEHDllVersion, [owner.VEHDebugView.VEHVersion, DWORD($cece0000+VEHVERSION)]), mtWarning, [mbok], 0);
+    MessageDlg(format(rsWrongVEHDllVersion, [owner.VEHDebugView.VEHVersion, DWORD($dada0000+VEHVERSION)]), mtWarning, [mbok], 0);
 end;
 
 procedure THeartBeat.execute;
@@ -121,7 +121,7 @@ begin
     inc(owner.VEHDebugView.heartbeat);
     sleep(250);
 
-    if doVersionCheck and (owner.VEHDebugView.VEHVersion<>$cece0000+VEHVERSION) then
+    if doVersionCheck and (owner.VEHDebugView.VEHVersion<>$dada0000+VEHVERSION) then
     begin
       inc(invalidversion);
       if invalidversion=10 then //(10*500 ms=5 seconds);
@@ -379,7 +379,7 @@ begin
 
 
     case VEHDebugView.Exception64.ExceptionCode of
-      $ce000000: //create process
+      $da000000: //create process
       begin
         lpDebugEvent.dwDebugEventCode:=CREATE_PROCESS_DEBUG_EVENT;
         lpDebugEvent.CreateProcessInfo.hFile:=0;
@@ -395,7 +395,7 @@ begin
         suspendthread(CurrentThread);
       end;
 
-      $ce000001: //create thread
+      $da000001: //create thread
       begin
         lpDebugEvent.dwDebugEventCode:=CREATE_THREAD_DEBUG_EVENT;
         if threads.GetData(lpDebugEvent.dwThreadId,lpDebugEvent.CreateThread.hThread)=false then
@@ -413,7 +413,7 @@ begin
 
       end;
 
-      $ce000002: //destroy thread
+      $da000002: //destroy thread
       begin
         lpDebugEvent.dwDebugEventCode:=EXIT_THREAD_DEBUG_EVENT;
         lpDebugEvent.ExitThread.dwExitCode:=0;

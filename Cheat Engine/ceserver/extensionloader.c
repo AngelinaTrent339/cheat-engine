@@ -1041,7 +1041,7 @@ void findmmapcallback(uintptr_t address, char *symbolname, PProcessData context)
 
 uint64_t allocWithoutExtension(HANDLE hProcess, void *addr, size_t length, int prot)
 {
-  int returnaddress=0xce0;
+  int returnaddress=0xda0;
   debug_log("allocWithoutExtension\n");
   if (GetHandleType(hProcess) == htProcesHandle )
   {

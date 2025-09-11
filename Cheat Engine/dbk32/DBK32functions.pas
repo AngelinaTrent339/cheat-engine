@@ -269,7 +269,7 @@ var hdevice: thandle=INVALID_HANDLE_VALUE; //handle to my the device driver
     oldNtReadVirtualMemory: function(ProcessHandle : HANDLE; BaseAddress : PVOID; Buffer : PVOID; BufferLength : ULONG; ReturnLength : PSIZE_T): NTSTATUS; stdcall;
     oldNtOpenProcess: function(Handle: PHandle; AccessMask: dword; objectattributes: pointer; clientid: PClient_ID):DWORD; stdcall;
 
-    NextPseudoHandle: integer=integer(dword($ce000000));
+    NextPseudoHandle: integer=integer(dword($da000000));
     DoNotOpenProcessHandles: Boolean=false;
     ProcessWatcherOpensHandles: Boolean=true;
 
@@ -1345,7 +1345,7 @@ var ao: array [0..511] of byte;
     bufpointer2: pointer;
     towrite: dword;
 begin
-  if vmx_loaded and (dbvm_version>=$ce00000a) then
+  if vmx_loaded and (dbvm_version>=$da00000a) then
   begin
     NumberOfBytesWritten:=dbvm_write_physical_memory(qword(lpBaseAddress), lpBuffer, nSize);
     exit(NumberOfBytesWritten=nSize);
@@ -1411,7 +1411,7 @@ var ao: array [0..600] of byte;
     bufpointer:ptrUint;
 begin
   //processhandle is just there for compatibility in case I want to quickly wrap it over read/writeprocessmemory
-  if vmx_loaded and (dbvm_version>=$ce00000a) then
+  if vmx_loaded and (dbvm_version>=$da00000a) then
   begin
     numberofbytesread:=dbvm_read_physical_memory(qword(lpBaseAddress), lpBuffer, nSize);
     exit(numberofbytesread=nSize);
@@ -1688,7 +1688,7 @@ begin
   end;
 
   //still here
-  if (BaseAddress>=qword($8000000000000000)) and (vmx_enabled and (dbvm_version>=$ce000005)) then //if dbvm is running and it's a kernel accesses use dbvm
+  if (BaseAddress>=qword($8000000000000000)) and (vmx_enabled and (dbvm_version>=$da000005)) then //if dbvm is running and it's a kernel accesses use dbvm
     result:=dbvm_copyMemory(pointer(BaseAddress), lpBuffer, nSize)
   else
     result:=windows.writeProcessMemory(hProcess,pointer(ptrUint(BaseAddress)),lpBuffer,nSize,NumberOfByteswritten);
@@ -2406,7 +2406,7 @@ begin
       result:=output;
   end
   else
-  if dbvm_version>=5 then
+  if (dbvm_version and $00ffffff)>=5 then
   begin
     //try allocating using dbvm
     result:=uint64(dbvm_kernelalloc(size));
@@ -2549,7 +2549,7 @@ begin
   end
   else
   begin
-    if dbvm_version>=5 then
+  if (dbvm_version and $00ffffff)>=5 then
       result:=uint64(dbvm_getProcAddress(st));
   end;
 
@@ -2750,7 +2750,7 @@ begin
   end
   else
   begin
-    if dbvm_version>=$ce000006 then
+    if dbvm_version>=$da000006 then
     begin
       try
         result:=dbvm_readMSR(msr); //will raise a GPF if it doesn't exist
@@ -2770,7 +2770,7 @@ var
     msrvalue: uint64;
   end;
 begin
-  if dbvm_version>=6 then
+  if (dbvm_version and $00ffffff)>=6 then
     dbvm_writeMSR(msr, value)
   else
   if (hdevice<>INVALID_HANDLE_VALUE) then
@@ -3440,7 +3440,7 @@ begin
 
         if hdevice=INVALID_HANDLE_VALUE then
         begin
-          if dbvm_version>$ce000000 then
+          if dbvm_version>$da000000 then
           begin
             if MessageDlg(rsTheDriverCouldntBeOpened, mtconfirmation, [mbyes, mbno],0)=mryes then
             begin

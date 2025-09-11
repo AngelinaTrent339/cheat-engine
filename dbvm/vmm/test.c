@@ -627,7 +627,7 @@ void dbvm_cloak_test(void)
     buf=(unsigned char *)newtestfunction;
     sendstringf("%6:", newtestfunction);
     for (i=0; i<size; i++)
-      sendstringf("%2 ",buf[i]); //when testing, should be all 0xce's
+      sendstringf("%2 ",buf[i]); //when testing, should be all 0xda's
 
     sendstringf("\n");
 
