@@ -35,6 +35,7 @@ Modified for Cheat Engine use because filenames differ between 32 and 64-bit (al
 
 
 {$mode objfpc}{$H+}
+{$define altname} // limit alt-name to this unit only (runtime UI replacement only)
 
 interface
 
@@ -399,18 +400,8 @@ end;
 {$ifdef altname}
 function altnamer(s: string): string;
 begin
-  s:=StringReplace(s, 'Cheat Engine','Runtime Modifier',[rfReplaceAll, rfIgnoreCase]);
-  s:=StringReplace(s, 'cheating in','modding',[rfReplaceAll]);
-  s:=StringReplace(s, 'cheating','modding',[rfReplaceAll]);
-  s:=StringReplace(s, 'cheatengine','runtimemodifier',[rfReplaceAll]);
-  s:=StringReplace(s, 'runtimemodifier.org','cheatengine.org',[rfReplaceAll]);
-  s:=StringReplace(s, 'cheat','modification',[rfReplaceAll]);
-  s:=StringReplace(s, 'Tutorial-','rtm-Tutorial-',[rfReplaceAll, rfIgnoreCase]);
-  s:=StringReplace(s, 'Cheat Table','Code Table',[rfReplaceAll]);
-  s:=StringReplace(s, 'CheatTable','Codetable',[rfReplaceAll]);
-
-  s:=StringReplace(s, ' trainer',' mod-tool ',[rfReplaceAll]);
-  s:=StringReplace(s, ' Trainer',' Mod-Tool ',[rfReplaceAll]);
+  // Only change the visible product name at runtime; leave all other words/keys intact
+  s:=StringReplace(s, 'Cheat Engine','Woke Engine',[rfReplaceAll, rfIgnoreCase]);
   exit(s);
 end;
 {$endif}
