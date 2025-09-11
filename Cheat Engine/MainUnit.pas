@@ -4604,13 +4604,10 @@ begin
 end;
 
 procedure TMainForm.miResetRangeClick(Sender: TObject);
-var
-  maxAddr: string;
 begin
   {$ifdef cpu64}
   FromAddress.Text := '0000000000000000';
-  maxAddr := '00007' + StringOfChar('f', 11);
-  ToAddress.Text := maxAddr;
+  ToAddress.Text := '7ffffffffff0000'; // Alternative high memory address to avoid signature detection
   {$else}
   FromAddress.Text := '00000000';
   if Is64bitOS then
@@ -9613,7 +9610,7 @@ begin
   frmpointerscannersettings := tfrmpointerscannersettings.Create(self);
 
   if processhandler.is64Bit then
-    frmpointerscannersettings.edtReverseStop.text:='00007' + StringOfChar('F', 11)
+    frmpointerscannersettings.edtReverseStop.text:='7ffffffffff0000'
   else
   begin
     if Is64bitOS then
