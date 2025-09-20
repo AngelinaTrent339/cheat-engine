@@ -91,7 +91,7 @@ jobs:
           
           # Build DBVM (release build without serial port)
           echo "Building DBVM components..."
-          make -j2 install SERIALPORT=0 DISPLAYDEBUG=0          echo "=== Build Complete ==="
+          make install SERIALPORT=0 DISPLAYDEBUG=0          echo "=== Build Complete ==="
 
       - name: Verify build outputs
         working-directory: dbvm
