@@ -35,12 +35,17 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
+          
+          # Check available GCC versions and install the oldest available
+          echo "=== Checking available GCC versions ==="
+          apt-cache search '^gcc-[0-9]+$' | sort
+          
           sudo apt-get install -y \
             yasm \
             nasm \
-            gcc-7 \
-            g++-7 \
-            gcc-7-multilib \
+            gcc-9 \
+            g++-9 \
+            gcc-9-multilib \
             libc6-dev-i386 \
             binutils \
             make \
@@ -48,9 +53,9 @@ jobs:
             genisoimage \
             zip
 
-          # Set GCC 7 as default for DBVM compatibility
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 100
-          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-7 100
+          # Set GCC 9 as default for DBVM compatibility  
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 100
 
           # mkisofs compatibility (genisoimage provides mkisofs functionality)
           if ! command -v mkisofs >/dev/null 2>&1 && command -v genisoimage >/dev/null 2>&1; then
@@ -86,6 +91,7 @@ jobs:
           
           # Build DBVM (release build without serial port)
           echo "Building DBVM components..."
+          export LDFLAGS="-static -T vmm.lnk -Map vmm.map -Wl,--allow-multiple-definition"
           make -j2 install SERIALPORT=0 DISPLAYDEBUG=0          echo "=== Build Complete ==="
 
       - name: Verify build outputs
