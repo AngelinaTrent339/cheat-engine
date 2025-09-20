@@ -139,9 +139,9 @@ var
   offset: dword;
   pbase: pbytearray;
   limit: integer;
+  sig: byte;
 begin
   //create and fill in the pointerlist based on a reversepointerlist
-  var sig: byte;
   sig:=s.ReadByte;
   if (sig<>$ce) and (sig<>$da) then
     raise exception.create(rsPALInvalidScandataFile);
