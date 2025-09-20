@@ -1,5 +1,5 @@
 ASM = yasm
-CC ?= gcc -m32
+CC = gcc -m32
 CFLAGS = -fno-builtin-strlen -fno-builtin-strcat -fno-builtin-strcpy -fno-builtin-malloc -fno-builtin-snprintf -fno-stack-protector -g
 AFLAGS = -f elf32 -gDWARF2
 
