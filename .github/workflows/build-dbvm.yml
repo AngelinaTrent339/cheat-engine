@@ -91,7 +91,6 @@ jobs:
           
           # Build DBVM (release build without serial port)
           echo "Building DBVM components..."
-          export LDFLAGS="-static -T vmm.lnk -Map vmm.map -Wl,--allow-multiple-definition"
           make -j2 install SERIALPORT=0 DISPLAYDEBUG=0          echo "=== Build Complete ==="
 
       - name: Verify build outputs
