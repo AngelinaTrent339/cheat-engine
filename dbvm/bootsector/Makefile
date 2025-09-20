@@ -1,5 +1,5 @@
-ASM = nasm
-LD = ld
+ASM ?= nasm
+LD ?= ld
 AFLAGS = -f elf
 LDFLAGS = -T bootloader.lnk -melf_i386
 

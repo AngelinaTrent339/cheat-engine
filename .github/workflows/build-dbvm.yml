@@ -23,7 +23,7 @@ permissions: read-all
 
 jobs:
   build:
-    runs-on: ubuntu-20.04  # Use older Ubuntu for better GCC compatibility
+     runs-on: ubuntu-22.04  # Use a currently available runner
     timeout-minutes: 30
     
     steps:
@@ -36,13 +36,22 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            yasm \
-            gcc-9 \
-            g++-9 \
-            binutils \
-            make \
-            build-essential \
-            genisoimage
+              yasm \
+            nasm \
+              gcc-10 \
+              g++-10 \
+              gcc-10-multilib \
+              libc6-dev-i386 \
+              binutils \
+              make \
+              build-essential \
+              genisoimage \
+              zip
+
+            # mkisofs compatibility (genisoimage provides mkisofs functionality)
+            if ! command -v mkisofs >/dev/null 2>&1 && command -v genisoimage >/dev/null 2>&1; then
+              sudo ln -s /usr/bin/genisoimage /usr/local/bin/mkisofs
+            fi
           
           # Create mkisofs symlink for compatibility (modern systems use genisoimage)
           sudo ln -sf /usr/bin/genisoimage /usr/bin/mkisofs
@@ -54,15 +63,15 @@ jobs:
       - name: Verify build tools
         run: |
           echo "=== Build Tools Versions ==="
-          gcc --version
-          g++ --version
+          gcc-10 --version
+          g++-10 --version
           yasm --version
           ld --version
           objcopy --version
           make --version
           mkisofs --version || genisoimage --version
-          which gcc
-          which g++
+          which gcc-10
+          which g++-10
           which mkisofs
 
       - name: Build DBVM (Clean Build)
@@ -75,7 +84,7 @@ jobs:
           
           # Build DBVM (release build without serial port)
           echo "Building DBVM components..."
-          make install SERIALPORT=0 DISPLAYDEBUG=0
+            make -j2 install SERIALPORT=0 DISPLAYDEBUG=0 CC=gcc-10 LD=ld
           
           echo "=== Build Complete ==="
 

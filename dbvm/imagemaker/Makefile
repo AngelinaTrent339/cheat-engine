@@ -1,5 +1,5 @@
-CC = gcc
-LD = ld
+CC ?= gcc
+LD ?= ld
 
 all:
 	@${CC} imagemaker.c -o imagemaker
