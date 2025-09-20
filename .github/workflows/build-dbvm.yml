@@ -14,17 +14,26 @@ jobs:
   build-dbvm:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    container:
+      image: ubuntu:24.04
+      options: --privileged
     
     steps:
+      - name: Install basic tools
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            git \
+            ca-certificates
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install GCC 9 and dependencies
+      - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get install -y --no-install-recommends \
             gcc-9 \
             g++-9 \
             gcc-9-multilib \
@@ -45,8 +54,8 @@ jobs:
 
       - name: Set GCC 9 as default
         run: |
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90
-          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 90
+          update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90
+          update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 90
           gcc --version
           g++ --version
 
