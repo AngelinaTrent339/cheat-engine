@@ -26,58 +26,68 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache Visual Studio 2019 installation
-        id: cache-vs2019
-        uses: actions/cache@v4
-        with:
-          path: |
-            C:\Program Files (x86)\Microsoft Visual Studio\2019
-            C:\Program Files (x86)\Windows Kits\10
-          key: vs2019-v142-wdk-${{ runner.os }}-v4
-          restore-keys: |
-            vs2019-v142-wdk-${{ runner.os }}-
-
-      - name: Install Visual Studio 2019 Build Tools
-        if: steps.cache-vs2019.outputs.cache-hit != 'true'
+      - name: Install Visual Studio 2019 Build Tools (v142)
         shell: pwsh
         run: |
-          Write-Host "Installing Visual Studio 2019 Build Tools with v142 toolset on Windows 2022..."
+          Write-Host "Installing Visual Studio 2019 Build Tools (v142) on windows-2022..."
           
-          # Download VS 2019 Build Tools directly
-          $vsInstaller = "${env:TEMP}\vs_buildtools.exe"
-          Write-Host "Downloading VS 2019 Build Tools installer..."
-          Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vs_buildtools.exe" -OutFile $vsInstaller -UseBasicParsing
-          
-          Write-Host "Installing VS 2019 with required v142 components..."
-          # Install with all required components for kernel driver development
-          & $vsInstaller --quiet --wait --norestart `
-            --add Microsoft.VisualStudio.Workload.VCTools `
-            --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-            --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 `
-            --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre `
-            --add Microsoft.VisualStudio.Component.VC.ATL `
-            --add Microsoft.VisualStudio.Component.VC.ATL.Spectre `
-            --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 `
-            --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre `
-            --add Microsoft.VisualStudio.Component.Windows10SDK.19041 `
-            --includeRecommended
-          
-          $exitCode = $LASTEXITCODE
-          Write-Host "VS installer exit code: $exitCode"
-          
-          if ($exitCode -eq 0 -or $exitCode -eq 3010) {
-            Write-Host "✅ Visual Studio 2019 Build Tools installed successfully"
-          } else {
-            Write-Error "VS 2019 installation failed with exit code $exitCode"
+          # If VS2019 already present, skip
+          $vs2019Path = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools"
+          if (Test-Path $vs2019Path) { Write-Host "✅ VS2019 BuildTools already present at $vs2019Path"; exit 0 }
+
+          # Try winget first with robust waiting
+          $winget = Get-Command winget -ErrorAction SilentlyContinue
+          if ($winget) {
+            Write-Host "Installing VS2019 via winget..."
+            $override = '--quiet --wait --norestart --installPath "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools" --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATL.Spectre --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre --add Microsoft.VisualStudio.Component.Windows10SDK.19041'
+            $args = @('install','--id','Microsoft.VisualStudio.2019.BuildTools','--exact','--source','winget','--silent','--accept-package-agreements','--accept-source-agreements','--override', $override)
+            $proc = Start-Process -FilePath 'winget' -ArgumentList $args -Wait -PassThru
+            Write-Host "winget exit code: $($proc.ExitCode)"
+            if ($proc.ExitCode -eq 0 -or $proc.ExitCode -eq 3010) {
+              Write-Host "✅ VS2019 installed via winget"
+              exit 0
+            } else {
+              Write-Warning "winget installation returned $($proc.ExitCode). Falling back to bootstrapper."
+            }
+          }
+
+          # Fallback to VS 2019 bootstrapper with Start-Process
+          $bootstrapper = "${env:TEMP}\vs_buildtools.exe"
+          Write-Host "Downloading VS2019 bootstrapper..."
+          Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vs_buildtools.exe" -OutFile $bootstrapper -UseBasicParsing
+          Write-Host "Running bootstrapper... (this may take a while)"
+          $bsArgs = @(
+            '--quiet','--wait','--norestart',
+            '--installPath','C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools',
+            '--add','Microsoft.VisualStudio.Workload.VCTools',
+            '--add','Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+            '--add','Microsoft.VisualStudio.Component.VC.v142.x86.x64',
+            '--add','Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre',
+            '--add','Microsoft.VisualStudio.Component.VC.ATL',
+            '--add','Microsoft.VisualStudio.Component.VC.ATL.Spectre',
+            '--add','Microsoft.VisualStudio.Component.VC.MFC.x86.x64',
+            '--add','Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre',
+            '--add','Microsoft.VisualStudio.Component.Windows10SDK.19041',
+            '--includeRecommended'
+          )
+          $proc2 = Start-Process -FilePath $bootstrapper -ArgumentList $bsArgs -Wait -PassThru
+          Write-Host "VS2019 bootstrapper exit code: $($proc2.ExitCode)"
+          if ($proc2.ExitCode -ne 0 -and $proc2.ExitCode -ne 3010) {
+            Write-Error "VS2019 installation failed with exit code $($proc2.ExitCode)"
             exit 1
           }
 
       - name: Install Windows 10 SDK 2004 (10.0.19041.0)
-        if: steps.cache-vs2019.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           Write-Host "Installing Windows 10 SDK 2004 (10.0.19041.0)..."
           
+          $sdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\10.0.19041.0"
+          if (Test-Path $sdkPath) {
+            Write-Host "✅ Windows 10 SDK 10.0.19041.0 already installed. Skipping."
+            exit 0
+          }
+
           # Download SDK installer directly
           Write-Host "Downloading Windows 10 SDK installer..."
           $sdkInstaller = "${env:TEMP}\winsdksetup.exe"
@@ -104,11 +114,16 @@ jobs:
           }
 
       - name: Install Windows Driver Kit (WDK)
-        if: steps.cache-vs2019.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           Write-Host "Installing Windows Driver Kit..."
           
+          $wdkInclude = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\wdf"
+          if (Test-Path $wdkInclude) {
+            Write-Host "✅ WDK already installed. Skipping."
+            exit 0
+          }
+
           # Download WDK
           $wdkInstaller = "${env:TEMP}\wdksetup.exe"
           Write-Host "Downloading WDK installer..."
@@ -124,31 +139,29 @@ jobs:
             Write-Warning "WDK installation completed with exit code $($process.ExitCode)"
           }
 
-      - name: Setup MSBuild for VS 2019
+      - name: Setup MSBuild (VS 2019)
         uses: microsoft/setup-msbuild@v2
         with:
-          vs-version: '[16.0,17.0)'
+          vs-version: '16.0'
 
       - name: Verify build environment
         shell: pwsh
         run: |
           Write-Host "=== Build Environment Verification ==="
           
-          # Check Visual Studio 2019 installation (on Windows 2022 runner)
+          # Check Visual Studio 2019 installation
           $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools"
-          if (-not (Test-Path $vsPath)) {
-            $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise"
-          }
+          if (-not (Test-Path $vsPath)) { $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise" }
           Write-Host "Visual Studio 2019 Path: $vsPath"
           Write-Host "VS 2019 Exists: $(Test-Path $vsPath)"
           
           # Check for v142 toolset specifically
-          $v142Path = "$vsPath\VC\Tools\MSVC"
-          if (Test-Path $v142Path) {
-            $v142Versions = Get-ChildItem $v142Path -Directory | Select-Object -ExpandProperty Name
-            Write-Host "Available v142 toolset versions: $($v142Versions -join ', ')"
+          $vctoolsPath = Join-Path $vsPath 'VC\Tools\MSVC'
+          if (Test-Path $vctoolsPath) {
+            $msvcVersions = Get-ChildItem $vctoolsPath -Directory | Select-Object -ExpandProperty Name
+            Write-Host "Available MSVC toolset versions: $($msvcVersions -join ', ')"
           } else {
-            Write-Warning "v142 toolset path not found: $v142Path"
+            Write-Warning "MSVC tools path not found at $vctoolsPath"
           }
           
           # Check Windows SDK 10.0.19041.0
@@ -192,7 +205,7 @@ jobs:
           msbuild DBKKernel.vcxproj `
             /p:Configuration="Release without sig" `
             /p:Platform="x64" `
-            /p:PlatformToolset=v142 `
+            /p:PlatformToolset=WindowsKernelModeDriver10.0 `
             /p:WindowsTargetPlatformVersion=10.0.19041.0 `
             /p:SignMode=Off `
             /p:TestSign=false `
