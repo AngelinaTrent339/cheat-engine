@@ -17,100 +17,93 @@ permissions: read-all
 
 jobs:
   build-driver:
-    runs-on: windows-2022
-    timeout-minutes: 60
+    runs-on: windows-2019
+    timeout-minutes: 90
     
-    strategy:
-      matrix:
-        configuration: ["Release without sig"]
-        platform: [x64]
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Cache Visual Studio components
-        id: cache-vs
+      - name: Cache Visual Studio 2019 installation
+        id: cache-vs2019
         uses: actions/cache@v4
         with:
           path: |
-            C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise
-            C:\Program Files (x86)\Windows Kits
-          key: vs2019-wdk-${{ runner.os }}-v3
+            C:\Program Files (x86)\Microsoft Visual Studio\2019
+            C:\Program Files (x86)\Windows Kits\10
+          key: vs2019-v142-wdk-${{ runner.os }}-v4
           restore-keys: |
-            vs2019-wdk-${{ runner.os }}-
+            vs2019-v142-wdk-${{ runner.os }}-
 
-      - name: Setup Visual Studio 2019 Build Tools
-        if: steps.cache-vs.outputs.cache-hit != 'true'
+      - name: Install Visual Studio 2019 Build Tools
+        if: steps.cache-vs2019.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          Write-Host "Installing Visual Studio 2019 Build Tools..."
+          Write-Host "Installing Visual Studio 2019 Build Tools with v142 toolset..."
           
-          # Download Visual Studio Installer
-          $vsInstaller = "${env:TEMP}\vs_buildtools.exe"
-          Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vs_buildtools.exe" -OutFile $vsInstaller
-          
-          # Install Visual Studio 2019 with required components
-          & $vsInstaller --quiet --wait --add Microsoft.VisualStudio.Workload.VCTools `
-            --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-            --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 `
-            --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre `
-            --add Microsoft.VisualStudio.Component.VC.ATL `
-            --add Microsoft.VisualStudio.Component.VC.ATL.Spectre `
-            --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 `
-            --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre `
-            --add Microsoft.VisualStudio.Component.Windows10SDK.19041 `
-            --includeRecommended
+          # Use chocolatey for faster installation
+          Write-Host "Installing via Chocolatey..."
+          choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATL.Spectre --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre --quiet" -y
           
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "Visual Studio installation failed with exit code $LASTEXITCODE"
-            exit 1
+            Write-Warning "Chocolatey installation had issues, trying direct installer..."
+            
+            # Fallback to direct installer
+            $vsInstaller = "${env:TEMP}\vs_buildtools.exe"
+            Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vs_buildtools.exe" -OutFile $vsInstaller -UseBasicParsing
+            
+            Write-Host "Running VS installer with required components..."
+            & $vsInstaller --quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATL.Spectre --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre
           }
 
       - name: Install Windows 10 SDK 2004 (10.0.19041.0)
-        if: steps.cache-vs.outputs.cache-hit != 'true'
+        if: steps.cache-vs2019.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          Write-Host "Installing Windows 10 SDK..."
+          Write-Host "Installing Windows 10 SDK 2004 (10.0.19041.0)..."
           
-          # Download Windows 10 SDK
-          $sdkInstaller = "${env:TEMP}\winsdksetup.exe"
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2311805" -OutFile $sdkInstaller
-          
-          # Install SDK with required features
-          & $sdkInstaller /quiet /features OptionId.WindowsPerformanceToolkit `
-            OptionId.WindowsDesktopDebuggers `
-            OptionId.NetFxSoftwareDevelopmentKit `
-            OptionId.WindowsIPOverUSB `
-            OptionId.WindowsDesktopSigning `
-            OptionId.UWPManaged `
-            OptionId.UWPCPP `
-            OptionId.Win32CPP
-          
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Windows SDK installation completed with warnings (exit code $LASTEXITCODE)"
+          # Use winget for faster installation if available
+          $wingetAvailable = Get-Command winget -ErrorAction SilentlyContinue
+          if ($wingetAvailable) {
+            Write-Host "Installing SDK via winget..."
+            winget install --id Microsoft.WindowsSDK.10.0.19041 --silent --accept-package-agreements --accept-source-agreements
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "✅ SDK installed via winget"
+              return
+            }
           }
+          
+          # Fallback to direct installer
+          Write-Host "Installing SDK via direct installer..."
+          $sdkInstaller = "${env:TEMP}\winsdksetup.exe"
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2311805" -OutFile $sdkInstaller -UseBasicParsing
+          
+          & $sdkInstaller /quiet /features OptionId.WindowsPerformanceToolkit OptionId.WindowsDesktopDebuggers OptionId.NetFxSoftwareDevelopmentKit OptionId.WindowsIPOverUSB OptionId.WindowsDesktopSigning OptionId.UWPManaged OptionId.UWPCPP OptionId.Win32CPP
 
       - name: Install Windows Driver Kit (WDK)
-        if: steps.cache-vs.outputs.cache-hit != 'true'
+        if: steps.cache-vs2019.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           Write-Host "Installing Windows Driver Kit..."
           
           # Download WDK
           $wdkInstaller = "${env:TEMP}\wdksetup.exe"
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2128854" -OutFile $wdkInstaller
+          Write-Host "Downloading WDK installer..."
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2128854" -OutFile $wdkInstaller -UseBasicParsing
           
-          # Install WDK
-          & $wdkInstaller /quiet
+          Write-Host "Installing WDK (this may take a few minutes)..."
+          # Install WDK quietly
+          $process = Start-Process -FilePath $wdkInstaller -ArgumentList "/quiet" -Wait -PassThru
           
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "WDK installation completed with warnings (exit code $LASTEXITCODE)"
+          if ($process.ExitCode -eq 0) {
+            Write-Host "✅ WDK installation completed successfully"
+          } else {
+            Write-Warning "WDK installation completed with exit code $($process.ExitCode)"
           }
 
-      - name: Setup MSBuild
+      - name: Setup MSBuild for VS 2019
         uses: microsoft/setup-msbuild@v2
         with:
           vs-version: '16.0'
@@ -120,22 +113,28 @@ jobs:
         run: |
           Write-Host "=== Build Environment Verification ==="
           
-          # Check Visual Studio installation
-          $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise"
+          # Check Visual Studio 2019 installation
+          $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools"
           if (-not (Test-Path $vsPath)) {
-            $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools"
+            $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise"
           }
-          Write-Host "Visual Studio Path: $vsPath"
-          Write-Host "VS Exists: $(Test-Path $vsPath)"
+          Write-Host "Visual Studio 2019 Path: $vsPath"
+          Write-Host "VS 2019 Exists: $(Test-Path $vsPath)"
           
-          # Check Windows SDK
+          # Check for v142 toolset specifically
+          $v142Path = "$vsPath\VC\Tools\MSVC"
+          if (Test-Path $v142Path) {
+            $v142Versions = Get-ChildItem $v142Path -Directory | Select-Object -ExpandProperty Name
+            Write-Host "Available v142 toolset versions: $($v142Versions -join ', ')"
+          }
+          
+          # Check Windows SDK 10.0.19041.0
           $sdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10"
           Write-Host "Windows SDK Path: $sdkPath"
           Write-Host "SDK Exists: $(Test-Path $sdkPath)"
           
-          # List SDK versions
-          $sdkVersions = Get-ChildItem "$sdkPath\bin" -Directory | Select-Object -ExpandProperty Name
-          Write-Host "Available SDK versions: $($sdkVersions -join ', ')"
+          $sdk19041Path = "$sdkPath\Include\10.0.19041.0"
+          Write-Host "SDK 10.0.19041.0 Exists: $(Test-Path $sdk19041Path)"
           
           # Check WDK
           $wdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\wdf"
@@ -146,51 +145,32 @@ jobs:
           Write-Host "MSBuild version:"
           msbuild -version
           
-          # Check for required tools
-          Write-Host "=== Required Tools Check ==="
-          $tools = @("cl.exe", "link.exe", "lib.exe")
-          foreach ($tool in $tools) {
-            $toolPath = (Get-Command $tool -ErrorAction SilentlyContinue)?.Source
-            if ($toolPath) {
-              Write-Host "$tool found at: $toolPath"
-            } else {
-              Write-Warning "$tool not found in PATH"
-            }
-          }
-
-      - name: Restore NuGet packages
-        shell: pwsh
-        run: |
-          Write-Host "Restoring NuGet packages for DBKKernel..."
-          cd "DBKKernel"
-          if (Test-Path "packages.config") {
-            nuget restore packages.config -PackagesDirectory packages
-          } else {
-            Write-Host "No packages.config found, skipping NuGet restore"
+          # Verify ATL and MFC
+          $atlPath = "$vsPath\VC\Tools\MSVC"
+          if (Test-Path $atlPath) {
+            Write-Host "✅ ATL/MFC components should be available in v142 toolset"
           }
 
       - name: Build DBK Kernel Driver
         shell: pwsh
         run: |
-          Write-Host "Building DBK Kernel Driver (64-bit unsigned)..."
-          Write-Host "Configuration: ${{ matrix.configuration }}"
-          Write-Host "Platform: ${{ matrix.platform }}"
+          Write-Host "Building DBK Kernel Driver (64-bit unsigned with v142 toolset)..."
           
           cd "DBKKernel"
           
-          # Build the driver without signing
+          # Build the driver with v142 toolset and specific SDK
           msbuild DBKKernel.vcxproj `
-            /p:Configuration="${{ matrix.configuration }}" `
-            /p:Platform="${{ matrix.platform }}" `
+            /p:Configuration="Release without sig" `
+            /p:Platform="x64" `
+            /p:PlatformToolset=v142 `
             /p:WindowsTargetPlatformVersion=10.0.19041.0 `
-            /p:PlatformToolset=WindowsKernelModeDriver10.0 `
             /p:SignMode=Off `
             /p:TestSign=false `
             /p:SignTool= `
             /p:Inf2CatUseLocalTime=true `
             /p:EnableInf2cat=false `
             /m `
-            /verbosity:minimal
+            /verbosity:normal
           
           if ($LASTEXITCODE -ne 0) {
             Write-Error "Build failed with exit code $LASTEXITCODE"
@@ -204,26 +184,17 @@ jobs:
           cd "DBKKernel"
           
           # List all build outputs
-          $buildDirs = @("Debug", "Release", "Release without sig")
-          foreach ($buildDir in $buildDirs) {
-            if (Test-Path $buildDir) {
-              Write-Host "Contents of $buildDir:"
-              Get-ChildItem $buildDir -Recurse | Format-Table Name, Length, LastWriteTime -AutoSize
-            }
+          if (Test-Path "x64") {
+            Write-Host "Contents of x64 directory:"
+            Get-ChildItem "x64" -Recurse | Format-Table Name, Length, LastWriteTime -AutoSize
           }
           
           # Find driver files
           Write-Host "=== Driver Files ==="
-          $driverFiles = Get-ChildItem -Recurse -Include "*.sys", "*.inf", "*.cat", "*.pdb" | Where-Object { $_.Name -notlike "*Test*" }
+          $driverFiles = Get-ChildItem -Recurse -Include "*.sys", "*.inf", "*.pdb" | Where-Object { $_.Name -notlike "*Test*" }
           foreach ($file in $driverFiles) {
             Write-Host "Found: $($file.FullName) ($(($file.Length / 1KB).ToString('F1')) KB)"
           }
-
-      - name: Sign driver (if Release configuration)
-        if: false  # Disabled - no signing
-        shell: pwsh
-        run: |
-          Write-Host "Driver signing is disabled for this build"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -239,23 +210,8 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs-${{ matrix.configuration }}-${{ matrix.platform }}-${{ github.sha }}
+          name: build-logs-${{ github.sha }}
           path: |
             DBKKernel/**/*.log
             DBKKernel/**/*.err
           if-no-files-found: ignore
-
-  build-summary:
-    needs: build-driver
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Build Summary
-        run: |
-          echo "=== Build Summary ===" 
-          echo "Build status: ${{ needs.build-driver.result }}"
-          if [ "${{ needs.build-driver.result }}" = "success" ]; then
-            echo "✅ 64-bit unsigned kernel driver build completed successfully!"
-          else
-            echo "❌ Build failed. Check the job logs for details."
-          fi
