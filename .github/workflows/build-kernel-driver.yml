@@ -17,7 +17,7 @@ permissions: read-all
 
 jobs:
   build-driver:
-    runs-on: windows-2019
+    runs-on: windows-2022
     timeout-minutes: 90
     
     steps:
@@ -41,21 +41,35 @@ jobs:
         if: steps.cache-vs2019.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          Write-Host "Installing Visual Studio 2019 Build Tools with v142 toolset..."
+          Write-Host "Installing Visual Studio 2019 Build Tools with v142 toolset on Windows 2022..."
           
-          # Use chocolatey for faster installation
-          Write-Host "Installing via Chocolatey..."
-          choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATL.Spectre --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre --quiet" -y
+          # Download VS 2019 Build Tools directly
+          $vsInstaller = "${env:TEMP}\vs_buildtools.exe"
+          Write-Host "Downloading VS 2019 Build Tools installer..."
+          Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vs_buildtools.exe" -OutFile $vsInstaller -UseBasicParsing
           
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Chocolatey installation had issues, trying direct installer..."
-            
-            # Fallback to direct installer
-            $vsInstaller = "${env:TEMP}\vs_buildtools.exe"
-            Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vs_buildtools.exe" -OutFile $vsInstaller -UseBasicParsing
-            
-            Write-Host "Running VS installer with required components..."
-            & $vsInstaller --quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATL.Spectre --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre
+          Write-Host "Installing VS 2019 with required v142 components..."
+          # Install with all required components for kernel driver development
+          & $vsInstaller --quiet --wait --norestart `
+            --add Microsoft.VisualStudio.Workload.VCTools `
+            --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 `
+            --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre `
+            --add Microsoft.VisualStudio.Component.VC.ATL `
+            --add Microsoft.VisualStudio.Component.VC.ATL.Spectre `
+            --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 `
+            --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre `
+            --add Microsoft.VisualStudio.Component.Windows10SDK.19041 `
+            --includeRecommended
+          
+          $exitCode = $LASTEXITCODE
+          Write-Host "VS installer exit code: $exitCode"
+          
+          if ($exitCode -eq 0 -or $exitCode -eq 3010) {
+            Write-Host "✅ Visual Studio 2019 Build Tools installed successfully"
+          } else {
+            Write-Error "VS 2019 installation failed with exit code $exitCode"
+            exit 1
           }
 
       - name: Install Windows 10 SDK 2004 (10.0.19041.0)
@@ -64,23 +78,30 @@ jobs:
         run: |
           Write-Host "Installing Windows 10 SDK 2004 (10.0.19041.0)..."
           
-          # Use winget for faster installation if available
-          $wingetAvailable = Get-Command winget -ErrorAction SilentlyContinue
-          if ($wingetAvailable) {
-            Write-Host "Installing SDK via winget..."
-            winget install --id Microsoft.WindowsSDK.10.0.19041 --silent --accept-package-agreements --accept-source-agreements
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "✅ SDK installed via winget"
-              return
-            }
-          }
-          
-          # Fallback to direct installer
-          Write-Host "Installing SDK via direct installer..."
+          # Download SDK installer directly
+          Write-Host "Downloading Windows 10 SDK installer..."
           $sdkInstaller = "${env:TEMP}\winsdksetup.exe"
           Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2311805" -OutFile $sdkInstaller -UseBasicParsing
           
-          & $sdkInstaller /quiet /features OptionId.WindowsPerformanceToolkit OptionId.WindowsDesktopDebuggers OptionId.NetFxSoftwareDevelopmentKit OptionId.WindowsIPOverUSB OptionId.WindowsDesktopSigning OptionId.UWPManaged OptionId.UWPCPP OptionId.Win32CPP
+          Write-Host "Installing SDK with required features..."
+          & $sdkInstaller /quiet /norestart /features `
+            OptionId.WindowsPerformanceToolkit `
+            OptionId.WindowsDesktopDebuggers `
+            OptionId.NetFxSoftwareDevelopmentKit `
+            OptionId.WindowsIPOverUSB `
+            OptionId.WindowsDesktopSigning `
+            OptionId.UWPManaged `
+            OptionId.UWPCPP `
+            OptionId.Win32CPP
+          
+          $exitCode = $LASTEXITCODE
+          Write-Host "SDK installer exit code: $exitCode"
+          
+          if ($exitCode -eq 0 -or $exitCode -eq 3010) {
+            Write-Host "✅ Windows 10 SDK installed successfully"
+          } else {
+            Write-Warning "SDK installation completed with warnings (exit code $exitCode)"
+          }
 
       - name: Install Windows Driver Kit (WDK)
         if: steps.cache-vs2019.outputs.cache-hit != 'true'
@@ -106,14 +127,14 @@ jobs:
       - name: Setup MSBuild for VS 2019
         uses: microsoft/setup-msbuild@v2
         with:
-          vs-version: '16.0'
+          vs-version: '[16.0,17.0)'
 
       - name: Verify build environment
         shell: pwsh
         run: |
           Write-Host "=== Build Environment Verification ==="
           
-          # Check Visual Studio 2019 installation
+          # Check Visual Studio 2019 installation (on Windows 2022 runner)
           $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools"
           if (-not (Test-Path $vsPath)) {
             $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise"
@@ -126,12 +147,19 @@ jobs:
           if (Test-Path $v142Path) {
             $v142Versions = Get-ChildItem $v142Path -Directory | Select-Object -ExpandProperty Name
             Write-Host "Available v142 toolset versions: $($v142Versions -join ', ')"
+          } else {
+            Write-Warning "v142 toolset path not found: $v142Path"
           }
           
           # Check Windows SDK 10.0.19041.0
           $sdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10"
           Write-Host "Windows SDK Path: $sdkPath"
           Write-Host "SDK Exists: $(Test-Path $sdkPath)"
+          
+          if (Test-Path $sdkPath) {
+            $sdkVersions = Get-ChildItem "$sdkPath\Include" -Directory | Select-Object -ExpandProperty Name | Where-Object { $_ -like "10.0.*" }
+            Write-Host "Available SDK versions: $($sdkVersions -join ', ')"
+          }
           
           $sdk19041Path = "$sdkPath\Include\10.0.19041.0"
           Write-Host "SDK 10.0.19041.0 Exists: $(Test-Path $sdk19041Path)"
@@ -146,9 +174,11 @@ jobs:
           msbuild -version
           
           # Verify ATL and MFC
-          $atlPath = "$vsPath\VC\Tools\MSVC"
-          if (Test-Path $atlPath) {
-            Write-Host "✅ ATL/MFC components should be available in v142 toolset"
+          if (Test-Path $v142Path) {
+            $latestV142 = (Get-ChildItem $v142Path -Directory | Sort-Object Name -Descending)[0].Name
+            $atlPath = "$v142Path\$latestV142\atlmfc"
+            Write-Host "ATL/MFC path: $atlPath"
+            Write-Host "ATL/MFC Exists: $(Test-Path $atlPath)"
           }
 
       - name: Build DBK Kernel Driver
