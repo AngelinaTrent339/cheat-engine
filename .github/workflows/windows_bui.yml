@@ -1,0 +1,100 @@
+name: Build Cheat Engine (Windows Lazarus 2.2.2)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - 'Cheat Engine/**'
+      - '.github/workflows/build-windows.yml'
+
+permissions: read-all
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      LAZ_URL_BASE: https://sourceforge.net/projects/lazarus/files/Lazarus%20Windows%2064%20bits/Lazarus%202.2.2
+      LAZ_MAIN: lazarus-2.2.2-fpc-3.2.2-win64.exe
+      LAZ_PATH: C:\lazarus
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache Lazarus installation
+        id: cache-lazarus
+        uses: actions/cache@v4
+        with:
+          path: C:\\lazarus
+          key: lazarus-win64-2.2.2-fpc-3.2.2-${{ runner.os }}-${{ runner.arch }}
+          restore-keys: |
+            lazarus-win64-2.2.2-fpc-3.2.2-
+
+      - name: Cache built artifact (zip)
+        id: cache-artifact
+        uses: actions/cache@v4
+        with:
+          path: Cheat-Engine-${{ github.sha }}.zip
+          key: ce-artifact-2.2.2-fpc-3.2.2-${{ github.sha }}
+
+      - name: Download Lazarus 2.2.2 + FPC 3.2.2 (Win64)
+        if: steps.cache-lazarus.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $mainUrl = "$env:LAZ_URL_BASE/$env:LAZ_MAIN/download"
+          curl -L -o "$env:RUNNER_TEMP\$env:LAZ_MAIN" $mainUrl
+          dir $env:RUNNER_TEMP
+
+      - name: Install Lazarus silently
+        if: steps.cache-lazarus.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          "%RUNNER_TEMP%\%LAZ_MAIN%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+          if not exist "%LAZ_PATH%\lazbuild.exe" ( echo Lazarus not installed & exit /b 1 )
+
+      - name: Show Lazarus version
+        shell: pwsh
+        run: |
+          & "$env:LAZ_PATH\lazbuild.exe" --version
+
+      - name: Build Cheat Engine (AVX2 mode)
+        shell: pwsh
+        if: steps.cache-artifact.outputs.cache-hit != 'true'
+        run: |
+          $env:Path = "$env:LAZ_PATH;$env:Path"
+          $project = Join-Path $pwd "Cheat Engine\cheatengine.lpi"
+          $mode = 'Release 64-Bit O4 AVX2'
+          if (-not (Test-Path $project)) { throw "Project not found: $project" }
+          Write-Host "Building $project in mode: $mode"
+          & "$env:LAZ_PATH\lazbuild.exe" --build-all --build-mode="$mode" "$project"
+          if ($LASTEXITCODE -ne 0) { throw "Build failed: $project" }
+
+      - name: Zip build outputs
+        if: steps.cache-artifact.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $zip = "Cheat-Engine-${{ github.sha }}.zip"
+          $binPath = "Cheat Engine\bin"
+          if (Test-Path $binPath) {
+            Compress-Archive -Path "$binPath\*" -DestinationPath $zip -Force
+          } else {
+            $tmp = Join-Path $env:RUNNER_TEMP "ce_build"
+            New-Item -Force -ItemType Directory -Path $tmp | Out-Null
+            Get-ChildItem -Recurse -Include *.exe,*.dll -File | Copy-Item -Destination $tmp
+            Compress-Archive -Path "$tmp\*" -DestinationPath $zip -Force
+          }
+          Write-Host "Created $zip"
+          Get-ChildItem *.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cheat-Engine-Windows-${{ github.sha }}
+          path: 'Cheat-Engine-${{ github.sha }}.zip'
+          if-no-files-found: error
