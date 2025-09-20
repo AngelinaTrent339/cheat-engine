@@ -1,0 +1,261 @@
+name: Build DBK Kernel Driver
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - 'DBKKernel/**'
+      - '.github/workflows/build-kernel-driver.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'DBKKernel/**'
+      - '.github/workflows/build-kernel-driver.yml'
+
+permissions: read-all
+
+jobs:
+  build-driver:
+    runs-on: windows-2019
+    timeout-minutes: 60
+    
+    strategy:
+      matrix:
+        configuration: ["Release without sig"]
+        platform: [x64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache Visual Studio components
+        id: cache-vs
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise
+            C:\Program Files (x86)\Windows Kits
+          key: vs2019-wdk-${{ runner.os }}-v3
+          restore-keys: |
+            vs2019-wdk-${{ runner.os }}-
+
+      - name: Setup Visual Studio 2019 Build Tools
+        if: steps.cache-vs.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Installing Visual Studio 2019 Build Tools..."
+          
+          # Download Visual Studio Installer
+          $vsInstaller = "${env:TEMP}\vs_buildtools.exe"
+          Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vs_buildtools.exe" -OutFile $vsInstaller
+          
+          # Install Visual Studio 2019 with required components
+          & $vsInstaller --quiet --wait --add Microsoft.VisualStudio.Workload.VCTools `
+            --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 `
+            --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre `
+            --add Microsoft.VisualStudio.Component.VC.ATL `
+            --add Microsoft.VisualStudio.Component.VC.ATL.Spectre `
+            --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 `
+            --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre `
+            --add Microsoft.VisualStudio.Component.Windows10SDK.19041 `
+            --includeRecommended
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Visual Studio installation failed with exit code $LASTEXITCODE"
+            exit 1
+          }
+
+      - name: Install Windows 10 SDK 2004 (10.0.19041.0)
+        if: steps.cache-vs.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Installing Windows 10 SDK..."
+          
+          # Download Windows 10 SDK
+          $sdkInstaller = "${env:TEMP}\winsdksetup.exe"
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2311805" -OutFile $sdkInstaller
+          
+          # Install SDK with required features
+          & $sdkInstaller /quiet /features OptionId.WindowsPerformanceToolkit `
+            OptionId.WindowsDesktopDebuggers `
+            OptionId.NetFxSoftwareDevelopmentKit `
+            OptionId.WindowsIPOverUSB `
+            OptionId.WindowsDesktopSigning `
+            OptionId.UWPManaged `
+            OptionId.UWPCPP `
+            OptionId.Win32CPP
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Windows SDK installation completed with warnings (exit code $LASTEXITCODE)"
+          }
+
+      - name: Install Windows Driver Kit (WDK)
+        if: steps.cache-vs.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Installing Windows Driver Kit..."
+          
+          # Download WDK
+          $wdkInstaller = "${env:TEMP}\wdksetup.exe"
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2128854" -OutFile $wdkInstaller
+          
+          # Install WDK
+          & $wdkInstaller /quiet
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "WDK installation completed with warnings (exit code $LASTEXITCODE)"
+          }
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+        with:
+          vs-version: '16.0'
+
+      - name: Verify build environment
+        shell: pwsh
+        run: |
+          Write-Host "=== Build Environment Verification ==="
+          
+          # Check Visual Studio installation
+          $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise"
+          if (-not (Test-Path $vsPath)) {
+            $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools"
+          }
+          Write-Host "Visual Studio Path: $vsPath"
+          Write-Host "VS Exists: $(Test-Path $vsPath)"
+          
+          # Check Windows SDK
+          $sdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10"
+          Write-Host "Windows SDK Path: $sdkPath"
+          Write-Host "SDK Exists: $(Test-Path $sdkPath)"
+          
+          # List SDK versions
+          $sdkVersions = Get-ChildItem "$sdkPath\bin" -Directory | Select-Object -ExpandProperty Name
+          Write-Host "Available SDK versions: $($sdkVersions -join ', ')"
+          
+          # Check WDK
+          $wdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\wdf"
+          Write-Host "WDK Path: $wdkPath"
+          Write-Host "WDK Exists: $(Test-Path $wdkPath)"
+          
+          # Check MSBuild
+          Write-Host "MSBuild version:"
+          msbuild -version
+          
+          # Check for required tools
+          Write-Host "=== Required Tools Check ==="
+          $tools = @("cl.exe", "link.exe", "lib.exe")
+          foreach ($tool in $tools) {
+            $toolPath = (Get-Command $tool -ErrorAction SilentlyContinue)?.Source
+            if ($toolPath) {
+              Write-Host "$tool found at: $toolPath"
+            } else {
+              Write-Warning "$tool not found in PATH"
+            }
+          }
+
+      - name: Restore NuGet packages
+        shell: pwsh
+        run: |
+          Write-Host "Restoring NuGet packages for DBKKernel..."
+          cd "DBKKernel"
+          if (Test-Path "packages.config") {
+            nuget restore packages.config -PackagesDirectory packages
+          } else {
+            Write-Host "No packages.config found, skipping NuGet restore"
+          }
+
+      - name: Build DBK Kernel Driver
+        shell: pwsh
+        run: |
+          Write-Host "Building DBK Kernel Driver (64-bit unsigned)..."
+          Write-Host "Configuration: ${{ matrix.configuration }}"
+          Write-Host "Platform: ${{ matrix.platform }}"
+          
+          cd "DBKKernel"
+          
+          # Build the driver without signing
+          msbuild DBKKernel.vcxproj `
+            /p:Configuration="${{ matrix.configuration }}" `
+            /p:Platform="${{ matrix.platform }}" `
+            /p:WindowsTargetPlatformVersion=10.0.19041.0 `
+            /p:PlatformToolset=WindowsKernelModeDriver10.0 `
+            /p:SignMode=Off `
+            /p:TestSign=false `
+            /p:SignTool= `
+            /p:Inf2CatUseLocalTime=true `
+            /p:EnableInf2cat=false `
+            /m `
+            /verbosity:minimal
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Build failed with exit code $LASTEXITCODE"
+            exit 1
+          }
+
+      - name: List build outputs
+        shell: pwsh
+        run: |
+          Write-Host "=== Build Outputs ==="
+          cd "DBKKernel"
+          
+          # List all build outputs
+          $buildDirs = @("Debug", "Release", "Release without sig")
+          foreach ($buildDir in $buildDirs) {
+            if (Test-Path $buildDir) {
+              Write-Host "Contents of $buildDir:"
+              Get-ChildItem $buildDir -Recurse | Format-Table Name, Length, LastWriteTime -AutoSize
+            }
+          }
+          
+          # Find driver files
+          Write-Host "=== Driver Files ==="
+          $driverFiles = Get-ChildItem -Recurse -Include "*.sys", "*.inf", "*.cat", "*.pdb" | Where-Object { $_.Name -notlike "*Test*" }
+          foreach ($file in $driverFiles) {
+            Write-Host "Found: $($file.FullName) ($(($file.Length / 1KB).ToString('F1')) KB)"
+          }
+
+      - name: Sign driver (if Release configuration)
+        if: false  # Disabled - no signing
+        shell: pwsh
+        run: |
+          Write-Host "Driver signing is disabled for this build"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: DBKKernel-x64-unsigned-${{ github.sha }}
+          path: |
+            DBKKernel/**/*.sys
+            DBKKernel/**/*.inf
+            DBKKernel/**/*.pdb
+          if-no-files-found: error
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.configuration }}-${{ matrix.platform }}-${{ github.sha }}
+          path: |
+            DBKKernel/**/*.log
+            DBKKernel/**/*.err
+          if-no-files-found: ignore
+
+  build-summary:
+    needs: build-driver
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Build Summary
+        run: |
+          echo "=== Build Summary ===" 
+          echo "Build status: ${{ needs.build-driver.result }}"
+          if [ "${{ needs.build-driver.result }}" = "success" ]; then
+            echo "✅ 64-bit unsigned kernel driver build completed successfully!"
+          else
+            echo "❌ Build failed. Check the job logs for details."
+          fi
