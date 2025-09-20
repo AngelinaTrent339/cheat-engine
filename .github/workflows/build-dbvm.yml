@@ -36,24 +36,26 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-              yasm \
+            yasm \
             nasm \
-              gcc-10 \
-              g++-10 \
-              gcc-10-multilib \
-              libc6-dev-i386 \
-              binutils \
-              make \
-              build-essential \
-              genisoimage \
-              zip
+            gcc-7 \
+            g++-7 \
+            gcc-7-multilib \
+            libc6-dev-i386 \
+            binutils \
+            make \
+            build-essential \
+            genisoimage \
+            zip
 
-            # mkisofs compatibility (genisoimage provides mkisofs functionality)
-            if ! command -v mkisofs >/dev/null 2>&1 && command -v genisoimage >/dev/null 2>&1; then
-              sudo ln -s /usr/bin/genisoimage /usr/local/bin/mkisofs
-            fi
-          
-          # Create mkisofs symlink for compatibility (modern systems use genisoimage)
+          # Set GCC 7 as default for DBVM compatibility
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-7 100
+
+          # mkisofs compatibility (genisoimage provides mkisofs functionality)
+          if ! command -v mkisofs >/dev/null 2>&1 && command -v genisoimage >/dev/null 2>&1; then
+            sudo ln -s /usr/bin/genisoimage /usr/local/bin/mkisofs
+          fi          # Create mkisofs symlink for compatibility (modern systems use genisoimage)
           sudo ln -sf /usr/bin/genisoimage /usr/bin/mkisofs
           
           # Set GCC 9 as default for this build
@@ -63,15 +65,15 @@ jobs:
       - name: Verify build tools
         run: |
           echo "=== Build Tools Versions ==="
-          gcc-10 --version
-          g++-10 --version
+          gcc --version
+          g++ --version
           yasm --version
           ld --version
           objcopy --version
           make --version
           mkisofs --version || genisoimage --version
-          which gcc-10
-          which g++-10
+          which gcc
+          which g++
           which mkisofs
 
       - name: Build DBVM (Clean Build)
@@ -84,9 +86,7 @@ jobs:
           
           # Build DBVM (release build without serial port)
           echo "Building DBVM components..."
-            make -j2 install SERIALPORT=0 DISPLAYDEBUG=0 CC=gcc-10 LD=ld
-          
-          echo "=== Build Complete ==="
+          make -j2 install SERIALPORT=0 DISPLAYDEBUG=0          echo "=== Build Complete ==="
 
       - name: Verify build outputs
         working-directory: dbvm
