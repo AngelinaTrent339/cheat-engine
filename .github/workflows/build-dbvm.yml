@@ -1,0 +1,179 @@
+name: Build DBVM Image
+
+# DBVM (DarkByte Virtual Machine) Build Workflow
+# 
+# Requirements:
+# - GCC 9 (older version needed for compatibility with low-level virtualization code)
+# - YASM assembler for x86/x64 assembly files
+# - genisoimage (mkisofs) for creating bootable ISO images
+# - Various binutils (ld, objcopy) for linking and object manipulation
+#
+# The DBVM requires specific compiler flags and behaviors that newer GCC versions
+# may handle differently, hence the use of GCC 9 specifically.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - 'dbvm/**'
+      - '.github/workflows/build-dbvm.yml'
+
+permissions: read-all
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04  # Use older Ubuntu for better GCC compatibility
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            yasm \
+            gcc-9 \
+            g++-9 \
+            binutils \
+            make \
+            build-essential \
+            genisoimage
+          
+          # Create mkisofs symlink for compatibility (modern systems use genisoimage)
+          sudo ln -sf /usr/bin/genisoimage /usr/bin/mkisofs
+          
+          # Set GCC 9 as default for this build
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 100
+
+      - name: Verify build tools
+        run: |
+          echo "=== Build Tools Versions ==="
+          gcc --version
+          g++ --version
+          yasm --version
+          ld --version
+          objcopy --version
+          make --version
+          mkisofs --version || genisoimage --version
+          which gcc
+          which g++
+          which mkisofs
+
+      - name: Build DBVM (Clean Build)
+        working-directory: dbvm
+        run: |
+          echo "=== Starting DBVM Clean Build ==="
+          
+          # Clean any previous builds
+          make clean || true
+          
+          # Build DBVM (release build without serial port)
+          echo "Building DBVM components..."
+          make install SERIALPORT=0 DISPLAYDEBUG=0
+          
+          echo "=== Build Complete ==="
+
+      - name: Verify build outputs
+        working-directory: dbvm
+        run: |
+          echo "=== Verifying Build Outputs ==="
+          
+          # Check for main image files
+          for file in vmdisk.img vmdisk144.img; do
+            if [ -f "$file" ]; then
+              echo "✓ $file created successfully"
+              ls -la "$file"
+              file "$file"
+            else
+              echo "✗ $file not found"
+              echo "Contents of dbvm directory:"
+              ls -la
+              exit 1
+            fi
+          done
+
+      - name: Create CD image
+        working-directory: dbvm
+        run: |
+          echo "=== Creating CD Image ==="
+          
+          # Create CD image using makefile target
+          make cdimage
+          
+          if [ -f "vmcd.iso" ]; then
+            echo "✓ vmcd.iso created successfully"
+            ls -la vmcd.iso
+            file vmcd.iso
+          else
+            echo "✗ vmcd.iso not found, trying manual creation"
+            
+            # Manual CD image creation as fallback
+            mkdir -p iso/boot
+            cp vmdisk144.img iso/boot/
+            genisoimage -r -b boot/vmdisk144.img -c boot/boot.catalog -o vmcd.iso iso/
+            
+            if [ -f "vmcd.iso" ]; then
+              echo "✓ vmcd.iso created manually"
+              ls -la vmcd.iso
+            else
+              echo "✗ Failed to create vmcd.iso"
+              exit 1
+            fi
+          fi
+
+      - name: Create release package
+        working-directory: dbvm
+        run: |
+          echo "=== Creating Release Package ==="
+          
+          # Create release directory
+          mkdir -p release
+          
+          # Copy main files
+          cp vmdisk.img release/
+          cp vmdisk144.img release/
+          cp vmcd.iso release/
+          cp docs/readme.txt release/
+          
+          # Copy additional documentation if available
+          if [ -f "vmm/docs/vmcall.txt" ]; then
+            cp vmm/docs/vmcall.txt release/
+          fi
+          
+          # Create multiple archive formats for compatibility
+          tar -czf dbvm-release.tar.gz -C release .
+          zip -r dbvm-release.zip release/
+          
+          echo "=== Release package contents ==="
+          ls -la release/
+          echo "=== Archive files ==="
+          ls -la dbvm-release.*
+
+      - name: Upload DBVM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: DBVM-Images-${{ github.sha }}
+          path: |
+            dbvm/vmdisk.img
+            dbvm/vmdisk144.img
+            dbvm/vmcd.iso
+            dbvm/dbvm-release.tar.gz
+            dbvm/dbvm-release.zip
+          if-no-files-found: error
+
+      - name: Upload debug information
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DBVM-Debug-Info-${{ github.sha }}
+          path: |
+            dbvm/**/*.map
+            dbvm/**/*.elf
+            dbvm/**/*.bin
+          if-no-files-found: ignore
