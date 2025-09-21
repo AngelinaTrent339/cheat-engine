@@ -1147,7 +1147,7 @@ void reboot(int skipAPTerminationWait)
 
   sendstring("Calling quickboot\n\r");
 
-  if (skipAPTerminationWait==0xdadead) //PSOD
+  if (skipAPTerminationWait==0xb7dead) //PSOD
     *(unsigned char *)0x7c0e=0xff;
   else
     *(unsigned char *)0x7c0e=bootdisk;

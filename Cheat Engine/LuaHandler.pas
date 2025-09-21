@@ -8576,7 +8576,7 @@ begin
 
     configure_vmx(key1, key2, key3);
 
-    lua_pushboolean(L, dbvm_version>=$da000000);
+    lua_pushboolean(L, dbvm_version>=$b7000000);
     result:=1;
   end
   else

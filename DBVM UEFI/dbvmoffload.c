@@ -301,7 +301,7 @@ void InitializeDBVM(UINT64 vmm, int vmmsize)
       int i;
       unsigned char *original=(unsigned char *)enterVMM;
       i=0;
-      while ((i<4096) && ((original[i]!=0xda) || (original[i+1]!=0xda) || (original[i+2]!=0xda) || (original[i+3]!=0xda) || (original[i+4]!=0xda)))
+      while ((i<4096) && ((original[i]!=0xb7) || (original[i+1]!=0xb7) || (original[i+2]!=0xb7) || (original[i+3]!=0xb7) || (original[i+4]!=0xb7)))
         i++;
 
       Print(L"size is %d\n",i);
@@ -654,23 +654,23 @@ void LaunchDBVM()
       Print(L"Testing:\n");
       struct
       {
-        unsigned int structsize;
-        unsigned int level2pass;
+        unsigned int password2;
         unsigned int command;
+        unsigned int size;
       } __attribute__((__packed__)) vmcallinfo;
 
       ZeroMem(&vmcallinfo, sizeof(vmcallinfo));
 
       Print(L"&vmcallinfo=%lx\n", &vmcallinfo);
 
-      vmcallinfo.structsize=sizeof(vmcallinfo);
-      vmcallinfo.level2pass=password2;
-      vmcallinfo.command=0; //VMCALL_GETVERSION
+      vmcallinfo.password2=password2;
+      vmcallinfo.command=183; //VMCALL_GETVERSION
+      vmcallinfo.size=sizeof(vmcallinfo);
 
       UINT64 dbvmversion=dovmcall(&vmcallinfo, password1);
       int r;
 
-      vmcallinfo.structsize=sizeof(vmcallinfo);
+      vmcallinfo.size=sizeof(vmcallinfo);
       vmcallinfo.level2pass=password2;
       vmcallinfo.command=38; //VMCALL_GETMEM
       UINT64 freemem,fullpages;
@@ -699,7 +699,7 @@ void LaunchDBVM()
 
 
 
-      vmcallinfo.structsize=sizeof(vmcallinfo);
+      vmcallinfo.size=sizeof(vmcallinfo);
       vmcallinfo.level2pass=password2;
       vmcallinfo.command=79; //HIDE DBVM MEMORY local cpu
       dovmcall(&vmcallinfo, password1);

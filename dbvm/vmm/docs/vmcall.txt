@@ -3,17 +3,17 @@ eax=pointer to information structure
 edx=level1pass (if wrong, immeadiate UD exception is raised)
 
 information struct:
-ULONG structsize
-ULONG level2pass; (if wrong, UD exception is raised)
+ULONG password2; (if wrong, UD exception is raised)
 ULONG command
+ULONG size
 ... Extra data depending on command
  
 
 command:
-0: verify vmm
-returns 0xdaxxxxxxxx in eax , where xxxxxx=version number of vmm
+183: verify vmm
+returns 0xb7xxxxxxxx in eax , where xxxxxx=version number of vmm
 
-1: Change password
+67: Change password
 params:
 ULONG password1 : New password for password 1
 ULONG password2 : New password for password 2
@@ -27,7 +27,7 @@ note: non-pae seems to work and is optimized, but PAE mode tends crash, and is u
 return 0 if turned off, returns 1 if turned on
 
 
-3: Read physical memory
+241: Read physical memory
 params:
 UINT64 sourcePA         : Source physical address
 DWORD  size             : Number of bytes to read
@@ -43,7 +43,7 @@ It is recommended that the destinationVA is only 4096 bytes on systems with very
 gets paged out, causing a infinite loop)
 
 
-4: Write physical memory
+92: Write physical memory
 params:
 UINT64 destinationPA  : Destination Physical address
 DWORD size            : Number of bytes to write
