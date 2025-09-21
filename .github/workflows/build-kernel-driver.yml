@@ -106,7 +106,7 @@ jobs:
           }
           
           # Verify installation
-          if (Test-Path $vs2019Path -or Test-Path $vs2019EntPath) {
+          if ((Test-Path $vs2019Path) -or (Test-Path $vs2019EntPath)) {
             Write-Host "✅ Confirmed VS2019 installed."
           } else {
             Write-Error "VS2019 not found after installation."
