@@ -26,10 +26,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Visual Studio 2019 Build Tools (v142)
+      - name: Install Visual Studio 2019 (Enterprise, v142)
+        id: install_vs2019
         shell: pwsh
         run: |
-          Write-Host "Installing Visual Studio 2019 Build Tools (v142) on windows-2022..."
+          Write-Host "Installing Visual Studio 2019 Enterprise (v142) on windows-2022..."
           
           # If VS2019 already present, skip
           $vs2019Path = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools"
@@ -37,7 +38,7 @@ jobs:
           $vs2019EntPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise"
           if (Test-Path $vs2019EntPath) { Write-Host "✅ VS2019 Enterprise already present at $vs2019EntPath"; exit 0 }
 
-          # Try direct VS2019 Enterprise installer (C2R) first as suggested
+          # Use direct VS2019 Enterprise installer (C2R)
           try {
             Write-Host "Downloading VS2019 Enterprise installer (C2R)..."
             $vsEntExe = Join-Path $env:TEMP 'vs2019_enterprise.exe'
@@ -57,82 +58,92 @@ jobs:
               '--add','Microsoft.VisualStudio.Component.Windows10SDK.19041',
               '--includeRecommended'
             )
-            $procEnt = Start-Process -FilePath $vsEntExe -ArgumentList $entArgs -Wait -PassThru
+            # Do not use -Wait so we can print progress and tail logs
+            $procEnt = Start-Process -FilePath $vsEntExe -ArgumentList $entArgs -PassThru
+            $start = Get-Date
+            $timeoutMinutes = 75
+            while (-not $procEnt.HasExited) {
+              $elapsed = (Get-Date) - $start
+              Write-Host ("Installing VS2019 Enterprise... elapsed {0:hh\:mm\:ss}" -f $elapsed)
+              # Tail latest installer log for visibility
+              try {
+                $cands = @()
+                $tmpLogs = Get-ChildItem "$env:TEMP" -Filter 'dd_*.log' -ErrorAction SilentlyContinue
+                if ($tmpLogs) { $cands += $tmpLogs }
+                $bootPath = 'C:\\ProgramData\\Microsoft\\VisualStudio\\Packages\\_bootstrapper'
+                if (Test-Path $bootPath) {
+                  $cands += Get-ChildItem $bootPath -Recurse -Include *.log -ErrorAction SilentlyContinue
+                }
+                if ($cands -and $cands.Count -gt 0) {
+                  $latest = $cands | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                  Write-Host "Latest installer log: $($latest.FullName) ($($latest.LastWriteTime))"
+                  Get-Content $latest.FullName -Tail 20 | ForEach-Object { Write-Host $_ }
+                } else {
+                  Write-Host "No installer logs found yet..."
+                }
+              } catch {
+                Write-Host "(log tail skipped: $($_.Exception.Message))"
+              }
+              if ($elapsed.TotalMinutes -gt $timeoutMinutes) {
+                Write-Error "VS2019 installer timeout after $timeoutMinutes minutes"
+                try { Stop-Process -Id $procEnt.Id -Force -ErrorAction SilentlyContinue } catch {}
+                exit 1
+              }
+              Start-Sleep -Seconds 60
+            }
+            $procEnt.WaitForExit()
             Write-Host "VS2019 Enterprise installer exit code: $($procEnt.ExitCode)"
             if ($procEnt.ExitCode -eq 0 -or $procEnt.ExitCode -eq 3010) {
               Write-Host "✅ VS2019 Enterprise installed successfully"
-              exit 0
             } else {
               Write-Warning "VS2019 Enterprise installer returned $($procEnt.ExitCode). Will try other methods."
+              Write-Error "VS2019 installation failed."
+              exit 1
             }
           } catch {
-            Write-Warning "Failed to download/run VS2019 Enterprise C2R installer: $($_.Exception.Message)"
-          }
-
-          # Try winget first with robust waiting
-          $winget = Get-Command winget -ErrorAction SilentlyContinue
-          if ($winget) {
-            Write-Host "Installing VS2019 via winget..."
-            $override = '--quiet --wait --norestart --installPath "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools" --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATL.Spectre --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre --add Microsoft.VisualStudio.Component.Windows10SDK.19041'
-            $args = @('install','--id','Microsoft.VisualStudio.2019.BuildTools','--exact','--source','winget','--silent','--accept-package-agreements','--accept-source-agreements','--override', $override)
-            $proc = Start-Process -FilePath 'winget' -ArgumentList $args -Wait -PassThru
-            Write-Host "winget exit code: $($proc.ExitCode)"
-            if ($proc.ExitCode -eq 0 -or $proc.ExitCode -eq 3010) {
-              Write-Host "✅ VS2019 installed via winget"
-              exit 0
-            } else {
-              Write-Warning "winget installation returned $($proc.ExitCode). Falling back to bootstrapper."
-            }
-          }
-
-          # Try Chocolatey as secondary fallback
-          $choco = Get-Command choco -ErrorAction SilentlyContinue
-          if ($choco) {
-            Write-Host "Installing VS2019 via Chocolatey..."
-            $params = '--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATL.Spectre --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre --add Microsoft.VisualStudio.Component.Windows10SDK.19041 --quiet --wait --norestart'
-            $procC = Start-Process -FilePath 'choco' -ArgumentList @('install','visualstudio2019buildtools','-y','--no-progress','--package-parameters',$params) -Wait -PassThru
-            Write-Host "choco exit code: $($procC.ExitCode)"
-            if ($procC.ExitCode -eq 0) {
-              Write-Host "✅ VS2019 installed via Chocolatey"
-              exit 0
-            } else {
-              Write-Warning "Chocolatey installation returned $($procC.ExitCode). Falling back to bootstrapper."
-            }
-          }
-
-          # Fallback to VS 2019 bootstrapper with Start-Process
-          $bootstrapper = "${env:TEMP}\vs_buildtools.exe"
-          Write-Host "Downloading VS2019 bootstrapper..."
-          Invoke-WebRequest -Uri "https://aka.ms/vs/16/release/vs_buildtools.exe" -OutFile $bootstrapper -UseBasicParsing
-          Write-Host "Running bootstrapper... (this may take a while)"
-          $bsArgs = @(
-            '--quiet','--wait','--norestart',
-            '--installPath','C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools',
-            '--add','Microsoft.VisualStudio.Workload.VCTools',
-            '--add','Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
-            '--add','Microsoft.VisualStudio.Component.VC.v142.x86.x64',
-            '--add','Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre',
-            '--add','Microsoft.VisualStudio.Component.VC.ATL',
-            '--add','Microsoft.VisualStudio.Component.VC.ATL.Spectre',
-            '--add','Microsoft.VisualStudio.Component.VC.MFC.x86.x64',
-            '--add','Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre',
-            '--add','Microsoft.VisualStudio.Component.Windows10SDK.19041',
-            '--includeRecommended'
-          )
-          $proc2 = Start-Process -FilePath $bootstrapper -ArgumentList $bsArgs -Wait -PassThru
-          Write-Host "VS2019 bootstrapper exit code: $($proc2.ExitCode)"
-          if ($proc2.ExitCode -ne 0 -and $proc2.ExitCode -ne 3010) {
-            Write-Error "VS2019 installation failed with exit code $($proc2.ExitCode)"
+            Write-Error "Failed to download/run VS2019 Enterprise C2R installer: $($_.Exception.Message)"
             exit 1
           }
-
+          
           # Verify installation
-          if (Test-Path $vs2019Path) {
-            Write-Host "✅ Confirmed VS2019 BuildTools installed at $vs2019Path"
+          if (Test-Path $vs2019Path -or Test-Path $vs2019EntPath) {
+            Write-Host "✅ Confirmed VS2019 installed."
           } else {
-            Write-Error "VS2019 BuildTools not found after installation."
+            Write-Error "VS2019 not found after installation."
             exit 1
           }
+
+      - name: Collect VS installer logs on failure
+        if: failure() && steps.install_vs2019.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Host "Collecting Visual Studio installer logs for diagnostics..."
+          $logDirs = @(
+            "$env:TEMP",
+            'C:\\ProgramData\\Microsoft\\VisualStudio\\Packages\\_bootstrapper'
+          )
+          $logFiles = @()
+          foreach ($d in $logDirs) {
+            if (Test-Path $d) {
+              $logFiles += Get-ChildItem $d -Recurse -Include *.log -ErrorAction SilentlyContinue
+            }
+          }
+          if (-not $logFiles -or $logFiles.Count -eq 0) {
+            Write-Host "No VS installer logs found."
+          } else {
+            $dest = Join-Path $env:RUNNER_TEMP 'vs_installer_logs.zip'
+            if (Test-Path $dest) { Remove-Item $dest -Force }
+            Compress-Archive -Path ($logFiles | Select-Object -ExpandProperty FullName) -DestinationPath $dest -Force
+            Write-Host ("Logs zipped to {0} (files: {1})" -f $dest, $logFiles.Count)
+          }
+        continue-on-error: true
+
+      - name: Upload VS installer logs
+        if: failure() && steps.install_vs2019.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vs-installer-logs
+          path: ${{ runner.temp }}/vs_installer_logs.zip
 
       - name: Install Windows 10 SDK 2004 (10.0.19041.0)
         shell: pwsh
@@ -198,74 +209,52 @@ jobs:
 
       # setup-msbuild not required; we call VS2019 MSBuild.exe directly
 
-      - name: Install Visual Studio 2019 (Enterprise, v142)
+      - name: Build DBKKernel (x64 unsigned)
         shell: pwsh
+        working-directory: DBKKernel
         run: |
-          Write-Host "Installing Visual Studio 2019 Enterprise (v142) on windows-2022..."
+          Write-Host "Building DBKKernel.sln (Release without sig | x64) with VS2019 MSBuild..."
           
-          # Check Visual Studio 2019 installation
-          $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools"
-          if (-not (Test-Path $vsPath)) { $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise" }
-          Write-Host "Visual Studio 2019 Path: $vsPath"
-          Write-Host "VS 2019 Exists: $(Test-Path $vsPath)"
+          # Locate VS2019 MSBuild
+          $msbuildCandidates = @(
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
+          )
+          $msbuild = $msbuildCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $msbuild) {
+            Write-Error "Could not find VS2019 MSBuild.exe"
+            exit 1
+          }
+          Write-Host "Using MSBuild: $msbuild"
 
-          if (-not (Test-Path $vsPath)) {
-            Write-Error "VS 2019 is required but not installed."
+          # Ensure Windows SDK 10.0.19041.0 exists
+          $sdk19041Path = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\10.0.19041.0"
+          if (-not (Test-Path $sdk19041Path)) {
+            Write-Error "Required Windows 10 SDK 10.0.19041.0 not found at $sdk19041Path"
             exit 1
           }
-          
-          # Check for v142 toolset specifically
-          $vctoolsPath = Join-Path $vsPath 'VC\Tools\MSVC'
-          if (Test-Path $vctoolsPath) {
-            $msvcVersions = Get-ChildItem $vctoolsPath -Directory | Select-Object -ExpandProperty Name
-            Write-Host "Available MSVC toolset versions: $($msvcVersions -join ', ')"
-          } else {
-            Write-Warning "MSVC tools path not found at $vctoolsPath"
+
+          # Build with OutDir override and disable post-build signing
+          & "$msbuild" "DBKKernel.sln" /m /t:Build /p:Configuration="Release without sig" /p:Platform=x64 `
+            /p:PlatformToolset=WindowsKernelModeDriver10.0 `
+            /p:WindowsTargetPlatformVersion=10.0.19041.0 `
+            /p:OutDir="$(Resolve-Path .)\build\" `
+            /p:PostBuildEventUseInBuild=false
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "MSBuild failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
           }
-          
-          # Check Windows SDK 10.0.19041.0
-          $sdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10"
-          Write-Host "Windows SDK Path: $sdkPath"
-          Write-Host "SDK Exists: $(Test-Path $sdkPath)"
-          
-          if (Test-Path $sdkPath) {
-            $sdkVersions = Get-ChildItem "$sdkPath\Include" -Directory | Select-Object -ExpandProperty Name | Where-Object { $_ -like "10.0.*" }
-            Write-Host "Available SDK versions: $($sdkVersions -join ', ')"
-          }
-          
-          $sdk19041Path = "$sdkPath\Include\10.0.19041.0"
-          Write-Host "SDK 10.0.19041.0 Exists: $(Test-Path $sdk19041Path)"
-          
-          # Check WDK
-          $wdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\wdf"
-          Write-Host "WDK Path: $wdkPath"
-          Write-Host "WDK Exists: $(Test-Path $wdkPath)"
-          
-          # Check MSBuild
-          $vs2019MSBuild = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-          # Verify installation
-          if (Test-Path $vs2019Path -or Test-Path $vs2019EntPath) {
-            Write-Host "✅ Confirmed VS2019 installed."
-          } else {
-            Write-Error "VS2019 not found after installation."
-            exit 1
-          }
-          
-          # Find driver files
-          Write-Host "=== Driver Files ==="
-          $driverFiles = Get-ChildItem -Recurse -Include "*.sys", "*.inf", "*.pdb" | Where-Object { $_.Name -notlike "*Test*" }
-          foreach ($file in $driverFiles) {
-            Write-Host "Found: $($file.FullName) ($(($file.Length / 1KB).ToString('F1')) KB)"
-          }
+          Write-Host "✅ Build completed"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: DBKKernel-x64-unsigned-${{ github.sha }}
           path: |
-            DBKKernel/**/*.sys
-            DBKKernel/**/*.inf
-            DBKKernel/**/*.pdb
+            DBKKernel/build/**/*.sys
+            DBKKernel/build/**/*.inf
+            DBKKernel/build/**/*.pdb
+            DBKKernel/DBK64.inf
           if-no-files-found: error
 
       - name: Upload logs on failure
