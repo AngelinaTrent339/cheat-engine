@@ -56,6 +56,8 @@ jobs:
               '--add','Microsoft.VisualStudio.Component.VC.MFC.x86.x64',
               '--add','Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre',
               '--add','Microsoft.VisualStudio.Component.Windows10SDK.19041',
+              '--add','Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre',
+              '--add','Microsoft.VisualStudio.Component.WinXP',
               '--includeRecommended'
             )
             # Do not use -Wait so we can print progress and tail logs
@@ -225,6 +227,60 @@ jobs:
           } else {
             Write-Warning "WDK installation completed with exit code $($process.ExitCode)"
           }
+
+      - name: Integrate WDK with VS2019
+        shell: pwsh
+        run: |
+          Write-Host "Integrating WDK with VS2019..."
+          
+          # Check if WDK MSBuild files exist
+          $wdkMSBuildPath = "${env:ProgramFiles(x86)}\Windows Kits\10\build"
+          if (-not (Test-Path $wdkMSBuildPath)) {
+            Write-Error "WDK MSBuild files not found at $wdkMSBuildPath"
+            exit 1
+          }
+          
+          # Find VS2019 MSBuild directory
+          $vsMSBuildPaths = @(
+            "C:\Program\MSBuild\Microsoft\VC",
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\MSBuild\Microsoft\VC",
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Microsoft\VC"
+          )
+          
+          $vsMSBuildPath = $null
+          foreach ($path in $vsMSBuildPaths) {
+            if (Test-Path $path) {
+              $vsMSBuildPath = $path
+              break
+            }
+          }
+          
+          if (-not $vsMSBuildPath) {
+            Write-Error "Could not find VS2019 MSBuild VC directory"
+            exit 1
+          }
+          
+          Write-Host "VS MSBuild path: $vsMSBuildPath"
+          Write-Host "WDK MSBuild path: $wdkMSBuildPath"
+          
+          # Check for WindowsKernelModeDriver10.0 toolset
+          $toolsetPath = Join-Path $vsMSBuildPath "v160\Platforms\x64\PlatformToolsets\WindowsKernelModeDriver10.0"
+          if (Test-Path $toolsetPath) {
+            Write-Host "✅ WindowsKernelModeDriver10.0 toolset already available"
+          } else {
+            Write-Host "WindowsKernelModeDriver10.0 toolset not found at $toolsetPath"
+            # List available toolsets
+            $platformsPath = Join-Path $vsMSBuildPath "v160\Platforms\x64\PlatformToolsets"
+            if (Test-Path $platformsPath) {
+              $toolsets = Get-ChildItem $platformsPath -Directory | Select-Object -ExpandProperty Name
+              Write-Host "Available toolsets: $($toolsets -join ', ')"
+            }
+          }
+          
+          # Set environment variable to help MSBuild find WDK
+          Write-Host "Setting WDK environment variables..."
+          [Environment]::SetEnvironmentVariable("WindowsSDKDir", "${env:ProgramFiles(x86)}\Windows Kits\10\", "Machine")
+          [Environment]::SetEnvironmentVariable("WindowsSDKVersion", "10.0.19041.0\", "Machine")
 
       # setup-msbuild not required; we call VS2019 MSBuild.exe directly
 
