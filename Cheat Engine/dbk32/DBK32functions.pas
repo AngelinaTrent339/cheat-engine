@@ -269,7 +269,7 @@ var hdevice: thandle=INVALID_HANDLE_VALUE; //handle to my the device driver
     oldNtReadVirtualMemory: function(ProcessHandle : HANDLE; BaseAddress : PVOID; Buffer : PVOID; BufferLength : ULONG; ReturnLength : PSIZE_T): NTSTATUS; stdcall;
     oldNtOpenProcess: function(Handle: PHandle; AccessMask: dword; objectattributes: pointer; clientid: PClient_ID):DWORD; stdcall;
 
-    NextPseudoHandle: integer=integer(dword($b7000000));
+    NextPseudoHandle: integer=integer(dword($da000000));
     DoNotOpenProcessHandles: Boolean=false;
     ProcessWatcherOpensHandles: Boolean=true;
 
@@ -3440,7 +3440,7 @@ begin
 
         if hdevice=INVALID_HANDLE_VALUE then
         begin
-          if dbvm_version>$b7000000 then
+          if dbvm_version>$da000000 then
           begin
             if MessageDlg(rsTheDriverCouldntBeOpened, mtconfirmation, [mbyes, mbno],0)=mryes then
             begin

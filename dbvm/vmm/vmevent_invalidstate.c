@@ -49,7 +49,7 @@ VMSTATUS handleInvalidEntryState(pcpuinfo currentcpuinfo,VMRegisters *vmregister
   RFLAGS guestrflags;
   guestrflags.value=vmread(vm_guest_rflags);
 
-  outportb(0x80,0xb7);
+  outportb(0x80,0xda);
 
 #ifdef DELAYEDSERIAL
   useserial=1;

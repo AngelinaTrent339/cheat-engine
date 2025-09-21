@@ -796,7 +796,7 @@ begin
     if receive(@r, sizeof(r))>0 then
     begin
       if (r>0) then
-        r:=r or $b7000000;
+        r:=r or $da000000;
 
       result:=r;
     end;
@@ -1248,7 +1248,7 @@ begin
       result:=output;
 
       if (result>0) then //mark it as a network handle
-        result:=result or $b7000000;
+        result:=result or $da000000;
 
       lpThreadId:=result; //for now
     end;
@@ -1681,7 +1681,7 @@ begin
     if receive(@h, sizeof(h))>0 then
     begin
       if (h>0) then
-        h:=h or $b7000000;
+        h:=h or $da000000;
       result:=h;
     end;
 end;
@@ -2409,7 +2409,7 @@ begin
   receive(@r,sizeof(r));
 
   if r<>0 then
-    result:=$b7000000 or r
+    result:=$da000000 or r
   else
     result:=INVALID_HANDLE_VALUE;
 end;

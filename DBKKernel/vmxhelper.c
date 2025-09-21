@@ -51,14 +51,14 @@ int vmx_hasredirectedint1()
 {
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 
-	vmcallinfo.password2=vmx_password2;
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_INT1REDIRECTED;
-	vmcallinfo.size=sizeof(vmcallinfo);
 	return (int)dovmcall(&vmcallinfo);
 }
 
@@ -69,16 +69,16 @@ This will either raise a unhandled opcode exception, or return the used dbvm ver
 {
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 
 	DbgPrint("vmx_getversion()\n");
 
-	vmcallinfo.password2=vmx_password2;
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_GETVERSION;
-	vmcallinfo.size=sizeof(vmcallinfo);
 
 	return (unsigned int)dovmcall(&vmcallinfo);;
 }
@@ -87,14 +87,14 @@ unsigned int vmx_getRealCR0()
 {
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 
-	vmcallinfo.password2=vmx_password2;
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_GETCR0;
-	vmcallinfo.size=sizeof(vmcallinfo);
 
 	return (unsigned int)dovmcall(&vmcallinfo);;
 }
@@ -103,14 +103,14 @@ UINT_PTR vmx_getRealCR3()
 {
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 
-	vmcallinfo.password2=vmx_password2;
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_GETCR3;
-	vmcallinfo.size=sizeof(vmcallinfo);
 
 	return dovmcall(&vmcallinfo);;
 }
@@ -119,14 +119,14 @@ unsigned int vmx_getRealCR4()
 {
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 
-	vmcallinfo.password2=vmx_password2;
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_GETCR4;
-	vmcallinfo.size=sizeof(vmcallinfo);
 
 	return (unsigned int)dovmcall(&vmcallinfo);;
 }
@@ -136,9 +136,9 @@ unsigned int vmx_redirect_interrupt1(VMXInterruptRedirectType redirecttype, unsi
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 		unsigned int redirecttype;
 		unsigned int newintvector;
 		UINT64 int1eip;
@@ -147,8 +147,8 @@ unsigned int vmx_redirect_interrupt1(VMXInterruptRedirectType redirecttype, unsi
 	#pragma pack()
 
 	DbgPrint("vmx_redirect_interrupt1: redirecttype=%d int1cs=%x int1eip=%llx sizeof(vmcallinfo)=%x\n", redirecttype, int1cs, int1eip, sizeof(vmcallinfo));
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_REDIRECTINT1;
 	vmcallinfo.redirecttype=redirecttype;
 	vmcallinfo.newintvector=newintvector;
@@ -163,9 +163,9 @@ unsigned int vmx_redirect_interrupt3(VMXInterruptRedirectType redirecttype, unsi
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 		unsigned int redirecttype;
 		unsigned int newintvector;
 		unsigned long long int3eip;
@@ -174,8 +174,8 @@ unsigned int vmx_redirect_interrupt3(VMXInterruptRedirectType redirecttype, unsi
 	#pragma pack()
 
 	DbgPrint("vmx_redirect_interrupt3: int3cs=%x int3eip=%x sizeof(vmcallinfo)=%x\n", int3cs, int3eip, sizeof(vmcallinfo));
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_REDIRECTINT3;
 	vmcallinfo.redirecttype=redirecttype;
 	vmcallinfo.newintvector=newintvector;
@@ -191,9 +191,9 @@ unsigned int vmx_redirect_interrupt14(VMXInterruptRedirectType redirecttype, uns
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 		unsigned int redirecttype;
 		unsigned int newintvector;
 		unsigned long long int14eip;
@@ -202,8 +202,8 @@ unsigned int vmx_redirect_interrupt14(VMXInterruptRedirectType redirecttype, uns
 	#pragma pack()
 
 	DbgPrint("vmx_redirect_interrupt14: int14cs=%x int14eip=%x sizeof(vmcallinfo)=%x\n", int14cs, int14eip, sizeof(vmcallinfo));
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_REDIRECTINT14;
 	vmcallinfo.redirecttype=redirecttype;
 	vmcallinfo.newintvector=newintvector;
@@ -218,9 +218,9 @@ unsigned int vmx_register_cr3_callback(unsigned int cs, unsigned int eip, unsign
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 		unsigned int callbacktype; //32-bit for this driver, so always 0
 		unsigned long long callback_eip;
 		unsigned int callback_cs;
@@ -229,8 +229,8 @@ unsigned int vmx_register_cr3_callback(unsigned int cs, unsigned int eip, unsign
 	} vmcallinfo;
 	#pragma pack()
 
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_REGISTER_CR3_EDIT_CALLBACK;
 	vmcallinfo.callbacktype=0;
 	vmcallinfo.callback_eip=eip;
@@ -246,17 +246,17 @@ unsigned int vmx_exit_cr3_callback(unsigned int newcr3)
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 		unsigned long long newcr3;
 	} vmcallinfo;
 	#pragma pack()
 
 	//DbgPrint("vmx_exit_cr3_callback(%x)\n",newcr3);
 
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_RETURN_FROM_CR3_EDIT_CALLBACK;
 	vmcallinfo.newcr3=newcr3;
 
@@ -269,9 +269,9 @@ unsigned int vmx_watch_pagewrites(UINT64 PhysicalAddress, int Size, int Options,
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
-		unsigned int command;
-		unsigned int size; //VMCALL_FINDWHATWRITESPAGE
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command; //VMCALL_FINDWHATWRITESPAGE
 		UINT64 PhysicalAddress;
 		int Size;
 		int Options; //binary.  
@@ -286,8 +286,8 @@ unsigned int vmx_watch_pagewrites(UINT64 PhysicalAddress, int Size, int Options,
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_WATCH_WRITES;
 	vmcallinfo.PhysicalAddress = PhysicalAddress;
 
@@ -308,9 +308,9 @@ unsigned int vmx_watch_pageaccess(UINT64 PhysicalAddress, int Size, int Options,
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
-		unsigned int command;
-		unsigned int size; //VMCALL_FINDWHATWRITESPAGE
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command; //VMCALL_FINDWHATWRITESPAGE
 		UINT64 PhysicalAddress;
 		int Size;
 		int Options; //binary.  
@@ -325,8 +325,8 @@ unsigned int vmx_watch_pageaccess(UINT64 PhysicalAddress, int Size, int Options,
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_WATCH_READS;
 	vmcallinfo.PhysicalAddress = PhysicalAddress;
 
@@ -351,9 +351,9 @@ Used to retrieve both read and write watches
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
-		unsigned int command;
-		unsigned int size; //VMCALL_FINDWHATWRITESPAGE
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command; //VMCALL_FINDWHATWRITESPAGE
 		DWORD ID;
 		UINT64 results;		
 		int resultsize;
@@ -361,8 +361,8 @@ Used to retrieve both read and write watches
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_WATCH_RETRIEVELOG;
 
 	vmcallinfo.ID = ID;
@@ -379,15 +379,15 @@ unsigned int vmx_watch_delete(int ID)
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
-		unsigned int command;
-		unsigned int size; //VMCALL_FINDWHATWRITESPAGE
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command; //VMCALL_FINDWHATWRITESPAGE
 		DWORD ID;
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_WATCH_DELETE;
 
 	vmcallinfo.ID = ID;
@@ -417,15 +417,15 @@ unsigned int vmx_cloak_activate(QWORD physicalPage)
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
-		unsigned int command;
-		unsigned int size; //VMCALL_CLOAK_ACTIVATE
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command; //VMCALL_CLOAK_ACTIVATE
 		QWORD physicalAddress;
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_CLOAK_ACTIVATE;
 	vmcallinfo.physicalAddress = physicalPage;
 
@@ -439,15 +439,15 @@ unsigned int vmx_cloak_deactivate(QWORD physicalPage)
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
-		unsigned int command;
-		unsigned int size; //VMCALL_CLOAK_ACTIVATE
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command; //VMCALL_CLOAK_ACTIVATE
 		QWORD physicalAddress;
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_CLOAK_DEACTIVATE;
 	vmcallinfo.physicalAddress = physicalPage;
 
@@ -462,16 +462,16 @@ reads 4096 bytes from the cloaked page and put it into original (original must b
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
-		unsigned int command;
-		unsigned int size; 
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command; 
 		QWORD physicalAddress;
 		QWORD destination;
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_CLOAK_READORIGINAL;
 	vmcallinfo.physicalAddress = physicalPage;
 	vmcallinfo.destination = (QWORD)destination;
@@ -487,16 +487,16 @@ reads 4096 bytes from the cloaked page and put it into original (original must b
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
-		unsigned int command;
-		unsigned int size; //VMCALL_CLOAK_ACTIVATE
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command; //VMCALL_CLOAK_ACTIVATE
 		QWORD physicalAddress;
 		QWORD source;
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_CLOAK_WRITEORIGINAL;
 	vmcallinfo.physicalAddress = physicalPage;
 	vmcallinfo.source = (QWORD)source;
@@ -517,16 +517,16 @@ Note: effects ALL cpu's
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
-		unsigned int command;
-		unsigned int size; //VMCALL_CLOAK_CHANGEREGONBP
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command; //VMCALL_CLOAK_CHANGEREGONBP
 		QWORD physicalAddress;
 		CHANGEREGONBPINFO changereginfo;		
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_CLOAK_CHANGEREGONBP;
 	vmcallinfo.physicalAddress = physicalAddress;
 	vmcallinfo.changereginfo = *changereginfo;
@@ -542,17 +542,17 @@ unsigned int vmx_ultimap_getDebugInfo(PULTIMAPDEBUGINFO debuginfo)
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
-		unsigned int command;
-		unsigned int size;	
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command;	
 		ULTIMAPDEBUGINFO debuginfo;
 	} vmcallinfo;
 	#pragma pack()
 
 	unsigned int i;
 
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_ULTIMAP_DEBUGINFO;
 
 	i=(unsigned int)dovmcall(&vmcallinfo);;
@@ -566,17 +566,17 @@ unsigned int vmx_ultimap(UINT_PTR cr3towatch, UINT64 debugctl_value, void *store
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 		UINT64 cr3;
 		UINT64 debugctl;
 		UINT64 storeaddress;		
 	} vmcallinfo;
 	#pragma pack()
 
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_ULTIMAP;
 	vmcallinfo.cr3=(UINT64)cr3towatch;
 	vmcallinfo.debugctl=(UINT64)debugctl_value;
@@ -593,14 +593,14 @@ unsigned int vmx_ultimap_disable()
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 	#pragma pack()
 
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_ULTIMAP_DISABLE;
 
 	return (unsigned int)dovmcall(&vmcallinfo);;
@@ -611,14 +611,14 @@ unsigned int vmx_ultimap_pause()
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_ULTIMAP_PAUSE;
 
 	return (unsigned int)dovmcall(&vmcallinfo);;
@@ -629,14 +629,14 @@ unsigned int vmx_ultimap_resume()
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_ULTIMAP_RESUME;
 
 	return (unsigned int)dovmcall(&vmcallinfo);;
@@ -647,14 +647,14 @@ unsigned int vmx_disable_dataPageFaults()
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 	#pragma pack()
 
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_DISABLE_DATAPAGEFAULTS;
 
 	return (unsigned int)dovmcall(&vmcallinfo);;
@@ -665,14 +665,14 @@ unsigned int vmx_enable_dataPageFaults()
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 	#pragma pack()
 
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_ENABLE_DATAPAGEFAULTS;
 
 	return (unsigned int)dovmcall(&vmcallinfo);;
@@ -683,14 +683,14 @@ UINT_PTR vmx_getLastSkippedPageFault()
 	#pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 	#pragma pack()
 
-	vmcallinfo.password2=vmx_password2;
-	vmcallinfo.size=sizeof(vmcallinfo);
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_GETLASTSKIPPEDPAGEFAULT;
 
 	return (UINT_PTR)dovmcall(&vmcallinfo);;
@@ -703,9 +703,9 @@ unsigned int vmx_add_memory(UINT64 *list, int count)
 #pragma pack(1)
 	typedef struct _vmcall_add_memory
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 		UINT64 PhysicalPages[0];
 	} AddMemoryInfoCall, *PAddMemoryInfoCall;
 #pragma pack()
@@ -715,9 +715,9 @@ unsigned int vmx_add_memory(UINT64 *list, int count)
 	DbgPrint("vmx_add_memory(%p,%d)\n", list, count);
 	DbgPrint("vmx_add_memory(vmx_password1=%x,vmx_password2=%x)\n", vmx_password1, vmx_password2);
 
-	DbgPrint("password2 at offset %d\n", (UINT64)(&vmcallinfo->password2) - (UINT64)vmcallinfo);
+	DbgPrint("structsize at offset %d\n", (UINT64)(&vmcallinfo->structsize) - (UINT64)vmcallinfo);
+	DbgPrint("level2pass at offset %d\n", (UINT64)(&vmcallinfo->level2pass) - (UINT64)vmcallinfo);
 	DbgPrint("command at offset %d\n", (UINT64)(&vmcallinfo->command) - (UINT64)vmcallinfo);
-	DbgPrint("size at offset %d\n", (UINT64)(&vmcallinfo->size) - (UINT64)vmcallinfo);
 	DbgPrint("PhysicalPages[0] at offset %d\n", (UINT64)(&vmcallinfo->PhysicalPages[0]) - (UINT64)vmcallinfo);
 	DbgPrint("PhysicalPages[1] at offset %d\n", (UINT64)(&vmcallinfo->PhysicalPages[1]) - (UINT64)vmcallinfo);
 
@@ -725,9 +725,9 @@ unsigned int vmx_add_memory(UINT64 *list, int count)
 	__try
 	{
 		int i;
-		vmcallinfo->size = sizeof(AddMemoryInfoCall) + count * sizeof(UINT64);
-		DbgPrint("vmcallinfo->size=%d\n", vmcallinfo->size);
-		vmcallinfo->password2 = vmx_password2;
+		vmcallinfo->structsize = sizeof(AddMemoryInfoCall) + count * sizeof(UINT64);
+		DbgPrint("vmcallinfo->structsize=%d\n", vmcallinfo->structsize);
+		vmcallinfo->level2pass = vmx_password2;
 		vmcallinfo->command = VMCALL_ADD_MEMORY;
 		j = 1;
 		for (i = 0; i < count; i++)
@@ -756,14 +756,14 @@ int vmx_causedCurrentDebugBreak()
 #pragma pack(1)
 	struct
 	{
-		unsigned int password2;
+		unsigned int structsize;
+		unsigned int level2pass;
 		unsigned int command;
-		unsigned int size;
 	} vmcallinfo;
 #pragma pack()
 
-	vmcallinfo.password2 = vmx_password2;
-	vmcallinfo.size = sizeof(vmcallinfo);
+	vmcallinfo.structsize = sizeof(vmcallinfo);
+	vmcallinfo.level2pass = vmx_password2;
 	vmcallinfo.command = VMCALL_CAUSEDDEBUGBREAK;
 
 	return (int)dovmcall(&vmcallinfo);;

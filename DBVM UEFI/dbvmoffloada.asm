@@ -220,13 +220,13 @@ vmmjump:
 
 
 detectionstring:
-  db 0b7h
-  db 0b7h
-  db 0b7h
-  db 0b7h
-  db 0b7h
-  db 0b7h
-  db 0b7h
+  db 0ceh
+  db 0ceh
+  db 0ceh
+  db 0ceh
+  db 0ceh
+  db 0ceh
+  db 0ceh
 
 
 GLOBAL enterVMMPrologue

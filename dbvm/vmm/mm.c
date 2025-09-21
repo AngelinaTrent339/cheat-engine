@@ -693,7 +693,7 @@ void unmapPhysicalMemory(void *virtualaddress, int size)
     nosendchar[getAPICID()]=0;
     sendstringf("%d: invalid address given to unmapPhysicalMemory (%6)\n",c->cpunr, virtualaddress);
     ddDrawRectangle(0,DDVerticalResolution-100,100,100,0xff0000);
-  while (1) outportb(0x80,0xb7);
+  while (1) outportb(0x80,0xda);
   }
 
   int i;

@@ -790,10 +790,10 @@ fxrstor [rsp]
 
 mov rsp,rbp
 
-cmp ax,0xb700
+cmp ax,0xda00
 je vmxloop_guestlaunch
 
-cmp ax,0xb701
+cmp ax,0xda01
 je vmxloop_guestresume
 
 cmp al,1  ;returnvalue of 1 = quit vmx
@@ -872,7 +872,7 @@ vmlaunch
 ;restore state of vmm
 
 
-mov dword [fs:0x10],0xb700 ;exitreason 0xb700
+mov dword [fs:0x10],0xda00 ;exitreason 0xda00
 jmp vmxloop_vmexit
 
 vmxloop_guestresume:
@@ -898,7 +898,7 @@ vmresume
 db 0xf1 ;debug
 
 ;never executed unless on error
-mov dword [fs:0x10],0xb701 ;exitreason 0xb701  (resume fail)
+mov dword [fs:0x10],0xda01 ;exitreason 0xda01  (resume fail)
 jmp vmxloop_vmexit
 
 vmxloop_exitvm:  ;(esp-68)
@@ -1414,7 +1414,7 @@ global stopautomation
 ;void stopautomation(void);
 ;-------------------------;
 stopautomation:
-mov rax,0xb7b7b7b7
+mov rax,0xdadadada
 VMCALL
 ret
 db 0xcc
@@ -3411,8 +3411,8 @@ db 0x90
 db 0x90
 
 db 0xea
-db 0xb7
-db 0xb7
+db 0xda
+db 0xda
 db 0xaa
 db 0xbb
 
