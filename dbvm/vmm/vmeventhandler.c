@@ -38,7 +38,7 @@ volatile QWORD globalTSC;
 volatile QWORD lowestTSC=0;
 
 int adjustTimestampCounters=1;
-int adjustTimestampCounterTimeout=2000;
+int adjustTimestampCounterTimeout=500;
 
 int useSpeedhack=0;
 double speedhackSpeed=1.0f;
@@ -1934,25 +1934,30 @@ int handleCPUID(VMRegisters *vmregisters)
   }
 
 
+  UINT64 oldeax=vmregisters->rax;
   _cpuid(&(vmregisters->rax),&(vmregisters->rbx),&(vmregisters->rcx),&(vmregisters->rdx));
 
-  /*
   if (oldeax==1)
   {
     //remove the hypervisor active bit (bit 31 in ecx)
-    vmregisters->rcx=vmregisters->rcx & (~(1 << 31));
+    vmregisters->rcx=vmregisters->rcx & (~(1ULL << 31));
+
+    //remove vmx capability in ecx
+    vmregisters->rcx=vmregisters->rcx & (~(1ULL << 5)); //set bit 5 to 0
 
     if ((vmregisters->rcx & (1<<26)) && (vmread(vm_guest_cr4) & CR4_OSXSAVE)) //doe sit have OSXSave capabilities and is it enabled ?
       vmregisters->rcx=vmregisters->rcx | (1 << 27); //the guest has activated osxsave , represent that in cpuid
-  }*/
+  }
 
-
-  /*
-  if (oldeax==1)
+  // Block hypervisor CPUID leaves (0x40000000-0x4000000F)
+  if ((oldeax >= 0x40000000) && (oldeax <= 0x4000000F))
   {
-    //remove vmx capability in ecx
-    vmregisters->rcx=vmregisters->rcx & (~(1 << 5)); //set bit 5 to 0
-  }*/
+    // Return invalid/zero values to hide hypervisor presence
+    vmregisters->rax = 0;
+    vmregisters->rbx = 0;
+    vmregisters->rcx = 0;
+    vmregisters->rdx = 0;
+  }
 
   //if (oldeax==0x80000001)
   //{
@@ -2567,8 +2572,8 @@ int setVM_CR3(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, UINT64 newcr3)
 
   /* From intel reference docs:
    * If CR4.PCIDE = 1, bit 63 of the source operand to MOV to CR3 determines whether the instruction invalidates
-entries in the TLBs and the paging-structure caches (see Section 4.10.4.1, “Operations that Invalidate TLBs and
-Paging-Structure Caches,” in the Intel® 64 and IA-32 Architectures Software Developer’s Manual, Volume 3A). The
+entries in the TLBs and the paging-structure caches (see Section 4.10.4.1, "Operations that Invalidate TLBs and
+Paging-Structure Caches," in the Intel® 64 and IA-32 Architectures Software Developer's Manual, Volume 3A). The
 instruction does not modify bit 63 of CR3, which is reserved and always 0.
    */
 

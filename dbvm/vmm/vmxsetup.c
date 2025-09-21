@@ -281,7 +281,10 @@ void setupVMX_AMD(pcpuinfo currentcpuinfo)
 
   currentcpuinfo->vmcb->InterceptExceptions=(1<<1) | (1<<3);// | (1<<14); //intercept int1, 3 and 14
 
- // currentcpuinfo->vmcb->InterceptINTR=1;
+  // Ensure CPUID is intercepted on AMD so it can be masked
+  currentcpuinfo->vmcb->InterceptCPUID=1;
+
+  // currentcpuinfo->vmcb->InterceptINTR=1;
  // currentcpuinfo->vmcb->InterceptDR0_15Write=(1<<6); //dr6 so I can see what changed
 
 
@@ -710,11 +713,11 @@ int vmx_enableNMIWindowExiting(void)
   if (vmx_enableProcBasedFeature(PBEF_NMI_WINDOW_EXITING))
   {
     //PBEF_NMI_WINDOW_EXITING can be set
-    //"If the “virtual NMIs” VM-execution control is 0, the “NMI-window exiting” VM-execution control must be 0."
+    //"If the "virtual NMIs" VM-execution control is 0, the "NMI-window exiting" VM-execution control must be 0."
     //so virtual NMIs must be 1 as well
     if (vmx_enablePinBasedFeature(PINBEF_VIRTUAL_NMIS))
     {
-      //"If the “NMI exiting” VM-execution control is 0, the “virtual NMIs” VM-execution control must be 0"
+      //"If the "NMI exiting" VM-execution control is 0, the "virtual NMIs" VM-execution control must be 0"
       //so also enable NMI exiting
       if (vmx_enablePinBasedFeature(PINBEF_NMI_EXITING))
         return 1;

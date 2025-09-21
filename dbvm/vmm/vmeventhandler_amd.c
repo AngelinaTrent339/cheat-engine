@@ -30,6 +30,13 @@ int c=0;
 
 criticalSection debugoutput={.name="debugoutput", .debuglevel=2};
 
+// Self-test one-shot flags and timestamp
+static volatile int selftest_printed_cpuid1=0;
+static volatile int selftest_printed_hvleaf=0;
+static volatile int selftest_printed_hvsample=0;
+static volatile int selftest_printed_rtdelta=0;
+static volatile QWORD selftest_cpuid_tsc=0;
+
 
 int isPrefix(unsigned char b)
 {
@@ -895,6 +902,14 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
       int r;
       r=handle_rdtsc(currentcpuinfo, vmregisters);
       currentcpuinfo->lastTSCTouch=_rdtsc();
+
+      if (!selftest_printed_rtdelta && selftest_cpuid_tsc)
+      {
+        QWORD now=_rdtsc();
+        QWORD delta=now - selftest_cpuid_tsc;
+        sendstringf("SelfTest: RDTSC delta after CPUID=%6\n", delta);
+        selftest_printed_rtdelta=1;
+      }
       return r;
     }
 
@@ -902,6 +917,14 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
     {
       int r=handle_rdtsc(currentcpuinfo, vmregisters);
       currentcpuinfo->lastTSCTouch=_rdtsc();
+
+      if (!selftest_printed_rtdelta && selftest_cpuid_tsc)
+      {
+        QWORD now=_rdtsc();
+        QWORD delta=now - selftest_cpuid_tsc;
+        sendstringf("SelfTest: RDTSCP delta after CPUID=%6\n", delta);
+        selftest_printed_rtdelta=1;
+      }
 
       vmregisters->rcx=readMSR(IA32_TSC_AUX_MSR);
       return r;
@@ -1360,10 +1383,95 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
     case VMEXIT_CPUID:
     {
       nosendchar[getAPICID()]=0;
-      sendstringf("!CPUID! %6->%6\n", currentcpuinfo->vmcb->RIP, currentcpuinfo->vmcb->nRIP);
-      currentcpuinfo->vmcb->RIP=currentcpuinfo->vmcb->nRIP;
+      // Emulate CPUID with anti-detection masking for AMD guests
+      UINT64 oldeax = currentcpuinfo->vmcb->RAX & 0xffffffffULL;
+      UINT64 a = oldeax;
+      UINT64 b = 0;
+      UINT64 c = vmregisters->rcx & 0xffffffffULL;
+      UINT64 d = 0;
 
-      while (1);
+      _cpuid(&a, &b, &c, &d);
+
+      if (oldeax==1)
+      {
+        // Clear hypervisor-present bit and VMX bit in ECX
+        c = c & (~(1ULL << 31));
+        c = c & (~(1ULL << 5));
+      }
+
+      // Hide hypervisor leaves entirely
+      if ((oldeax >= 0x40000000ULL) && (oldeax <= 0x400000FFULL))
+      {
+        a = 0; b = 0; c = 0; d = 0;
+      }
+
+      // One-shot self-test prints
+      if (!selftest_printed_cpuid1 && oldeax==1)
+      {
+        sendstringf("SelfTest: CPUID.1 ECX=%8 (HV=%d VMX=%d)\n", (DWORD)c, (DWORD)((c>>31)&1), (DWORD)((c>>5)&1));
+        selftest_printed_cpuid1=1;
+      }
+      if (!selftest_printed_hvleaf && oldeax==0x4000001eULL)
+      {
+        sendstringf("SelfTest: CPUID 0x4000001E => EAX=%8 EBX=%8 ECX=%8 EDX=%8\n", (DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
+        selftest_printed_hvleaf=1;
+      }
+      if (!selftest_printed_hvsample && (oldeax>=0x40000000ULL && oldeax<=0x400000FFULL))
+      {
+        sendstringf("SelfTest: HV leaf %8 masked sample => %8 %8 %8 %8\n", (DWORD)oldeax,(DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
+        selftest_printed_hvsample=1;
+      }
+
+      currentcpuinfo->vmcb->RAX = (DWORD)a;
+      vmregisters->rbx = (DWORD)b;
+      vmregisters->rcx = (DWORD)c;
+      vmregisters->rdx = (DWORD)d;
+
+      // Record CPUID TSC for next RDTSC/RDTSCP delta
+      selftest_cpuid_tsc=_rdtsc();
+
+      // Advance RIP
+      if (AMD_hasNRIPS)
+      {
+        currentcpuinfo->vmcb->RIP = currentcpuinfo->vmcb->nRIP;
+      }
+      else
+      {
+        // Fallback: scan for CPUID (0F A2) considering prefixes
+        int error;
+        UINT64 pagefaultaddress;
+        int size = 15;
+        unsigned char *bytes=(unsigned char *)mapVMmemory(currentcpuinfo, currentcpuinfo->vmcb->cs_base+currentcpuinfo->vmcb->RIP, size, &error, &pagefaultaddress);
+        if (!bytes)
+        {
+          size=pagefaultaddress-currentcpuinfo->vmcb->cs_base+currentcpuinfo->vmcb->RIP;
+          bytes=mapVMmemory(currentcpuinfo, currentcpuinfo->vmcb->cs_base+currentcpuinfo->vmcb->RIP, size, &error, &pagefaultaddress);
+        }
+        if (bytes)
+        {
+          int start=-1;
+          int i;
+          for (i=0; i<15; i++)
+          {
+            if (isPrefix(bytes[i])==FALSE)
+            {
+              start=i;
+              break;
+            }
+          }
+          if (start!=-1 && (start+1)<15 && bytes[start]==0x0f && bytes[start+1]==0xa2)
+            currentcpuinfo->vmcb->RIP+=start+2;
+          else
+            currentcpuinfo->vmcb->RIP+=2; // best-effort
+
+          unmapVMmemory(bytes, size);
+        }
+        else
+        {
+          currentcpuinfo->vmcb->RIP+=2; // best-effort
+        }
+      }
+
       return 0;
     }
 
