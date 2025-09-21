@@ -388,6 +388,31 @@ jobs:
                   Write-Warning "Toolset still missing after manual extraction"
                 }
               }
+
+              # Fallback 2: Copy PlatformToolsets from Windows Kits build folder if present
+              if (-not (Test-Path $toolsetPath)) {
+                $kitsBuild = "${env:ProgramFiles(x86)}\Windows Kits\10\build"
+                Write-Host "Searching Kits build folder for PlatformToolsets... ($kitsBuild)"
+                if (Test-Path $kitsBuild) {
+                  $ptCandidates = Get-ChildItem -Path $kitsBuild -Recurse -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -eq 'PlatformToolsets' -and (Test-Path (Join-Path $_.FullName 'WindowsKernelModeDriver10.0')) }
+                  if ($ptCandidates) {
+                    $srcPT = $ptCandidates | Select-Object -First 1
+                    Write-Host "Copying from Kits PlatformToolsets: $($srcPT.FullName) -> $toolsetsPath"
+                    New-Item -ItemType Directory -Path $toolsetsPath -Force | Out-Null
+                    Copy-Item -Path (Join-Path $srcPT.FullName '*') -Destination $toolsetsPath -Recurse -Force
+                    if (Test-Path $toolsetPath) {
+                      Write-Host "✅ Toolset became available after Kits copy"
+                    } else {
+                      Write-Warning "Toolset still missing after Kits copy"
+                    }
+                  } else {
+                    Write-Warning "No PlatformToolsets candidate found under Kits build folder"
+                  }
+                } else {
+                  Write-Warning "Kits build folder not found at $kitsBuild"
+                }
+              }
             }
           } else {
             Write-Host "✅ WindowsKernelModeDriver10.0 toolset already available"
