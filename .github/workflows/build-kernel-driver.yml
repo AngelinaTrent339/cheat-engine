@@ -46,7 +46,7 @@ jobs:
             Write-Host "Running VS2019 Enterprise installer..."
             $entArgs = @(
               '--quiet','--wait','--norestart',
-              '--installPath','C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise',
+              '--installPath',"C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise",
               '--add','Microsoft.VisualStudio.Workload.VCTools',
               '--add','Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
               '--add','Microsoft.VisualStudio.Component.VC.v142.x86.x64',
@@ -105,11 +105,30 @@ jobs:
             exit 1
           }
           
-          # Verify installation
-          if ((Test-Path $vs2019Path) -or (Test-Path $vs2019EntPath)) {
-            Write-Host "✅ Confirmed VS2019 installed."
-          } else {
-            Write-Error "VS2019 not found after installation."
+          # Verify installation - check both intended and actual paths
+          $vs2019Paths = @(
+            $vs2019Path,
+            $vs2019EntPath,
+            "C:\Program",  # Actual install path seen in logs
+            "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise",
+            "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools"
+          )
+          
+          $foundPath = $null
+          foreach ($path in $vs2019Paths) {
+            if (Test-Path $path) {
+              $foundPath = $path
+              Write-Host "✅ Found VS2019 at: $path"
+              break
+            }
+          }
+          
+          if (-not $foundPath) {
+            Write-Error "VS2019 not found at any expected location."
+            Write-Host "Checked paths:"
+            foreach ($path in $vs2019Paths) {
+              Write-Host "  - $path (exists: $(Test-Path $path))"
+            }
             exit 1
           }
 
@@ -218,11 +237,17 @@ jobs:
           # Locate VS2019 MSBuild
           $msbuildCandidates = @(
             "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
-            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\Program\MSBuild\Current\Bin\MSBuild.exe",  # Actual install path
+            "C:\Program\Common7\Tools\MSBuild\Current\Bin\MSBuild.exe"
           )
           $msbuild = $msbuildCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $msbuild) {
             Write-Error "Could not find VS2019 MSBuild.exe"
+            Write-Host "Checked paths:"
+            foreach ($path in $msbuildCandidates) {
+              Write-Host "  - $path (exists: $(Test-Path $path))"
+            }
             exit 1
           }
           Write-Host "Using MSBuild: $msbuild"
