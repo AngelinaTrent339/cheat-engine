@@ -299,8 +299,10 @@ jobs:
           Write-Host "VSRoot (inferred): $vsRoot"
 
           $vcV160 = Join-Path $msbuildRoot "Microsoft\\VC\\v160"
-          $platformsPath = Join-Path $vcV160 "Platforms\\x64\\PlatformToolsets"
-          $toolsetPath = Join-Path $platformsPath "WindowsKernelModeDriver10.0"
+          $platformsRoot = Join-Path $vcV160 "Platforms"
+          $wdkPlatformPath = Join-Path $platformsRoot "WindowsKernelModeDriver10.0"
+          $toolsetsPath = Join-Path $wdkPlatformPath "PlatformToolsets"
+          $toolsetPath = Join-Path $toolsetsPath "WindowsKernelModeDriver10.0"
           Write-Host "Checking toolset folder: $toolsetPath"
 
           if (-not (Test-Path $toolsetPath)) {
@@ -319,23 +321,36 @@ jobs:
             Write-Host "VSIXInstaller: $vsixInstaller"
 
             # Locate WDK VSIX packages
-            $wdkVsixRoot = "${env:ProgramFiles(x86)}\\Windows Kits\\10\\Vsix"
-            if (-not (Test-Path $wdkVsixRoot)) { $wdkVsixRoot = "${env:ProgramFiles(x86)}\\Windows Kits\\10" }
+            # Search likely VSIX locations
+            $vsixSearchRoots = @(
+              "${env:ProgramFiles(x86)}\\Windows Kits\\10\\Vsix\\VS2019",
+              "${env:ProgramFiles(x86)}\\Windows Kits\\10\\Vsix",
+              "${env:ProgramFiles(x86)}\\Windows Kits\\10"
+            )
             $vsixFiles = @()
-            if (Test-Path $wdkVsixRoot) {
-              $vsixFiles = Get-ChildItem $wdkVsixRoot -Recurse -Include *.vsix -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'wdk|wdf' }
+            foreach ($root in $vsixSearchRoots) {
+              if (Test-Path $root) {
+                Write-Host "Scanning VSIX root: $root"
+                $found = Get-ChildItem $root -Recurse -Include *.vsix -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'wdk|wdf|driver' }
+                if ($found) { $vsixFiles += $found }
+              }
             }
             if (-not $vsixFiles -or $vsixFiles.Count -eq 0) {
-              Write-Error "No WDK/WDF VSIX packages found under $wdkVsixRoot"
-              exit 1
+              Write-Warning "No WDK/WDF VSIX packages found under: $($vsixSearchRoots -join ', ')"
+            } else {
+              Write-Host "Found VSIX packages:"
+              $vsixFiles | ForEach-Object { Write-Host "  - $($_.FullName)" }
             }
-            Write-Host "Found VSIX packages:"
-            $vsixFiles | ForEach-Object { Write-Host "  - $($_.FullName)" }
 
-            foreach ($vsix in $vsixFiles) {
-              Write-Host "Installing VSIX: $($vsix.FullName)"
-              $proc = Start-Process -FilePath $vsixInstaller -ArgumentList @('/quiet', '/admin', '/logFile', (Join-Path $env:TEMP "vsix_$(Get-Date -Format yyyyMMddHHmmss).log"), $vsix.FullName) -PassThru -Wait
-              Write-Host "VSIX exit code: $($proc.ExitCode)"
+            if ($vsixFiles -and $vsixFiles.Count -gt 0) {
+              foreach ($vsix in $vsixFiles) {
+                Write-Host "Installing VSIX: $($vsix.FullName)"
+                $logPath = Join-Path $env:TEMP ("vsix_" + [Guid]::NewGuid().ToString() + ".log")
+                $proc = Start-Process -FilePath $vsixInstaller -ArgumentList @('/quiet', '/admin', '/logFile', $logPath, $vsix.FullName) -PassThru -Wait
+                Write-Host "VSIX exit code: $($proc.ExitCode) (log: $logPath)"
+              }
+            } else {
+              Write-Warning "Skipping VSIX installation since none were found"
             }
 
             # Re-check toolset after VSIX installation
@@ -344,19 +359,45 @@ jobs:
             } else {
               Write-Warning "WindowsKernelModeDriver10.0 toolset still not found at $toolsetPath"
               # List available toolsets for diagnostics
-              if (Test-Path $platformsPath) {
-                $toolsets = Get-ChildItem $platformsPath -Directory | Select-Object -ExpandProperty Name
+              if (Test-Path $toolsetsPath) {
+                $toolsets = Get-ChildItem $toolsetsPath -Directory | Select-Object -ExpandProperty Name
                 Write-Host "Available toolsets: $($toolsets -join ', ')"
+              }
+
+              # Fallback: Manually extract toolset files from VSIX and copy into VC targets
+              if ($vsixFiles -and $vsixFiles.Count -gt 0) {
+                $vsix = $vsixFiles | Select-Object -First 1
+                Write-Host "Attempting manual extraction from: $($vsix.FullName)"
+                $extractDir = Join-Path $env:TEMP ("wdkvsix_" + [Guid]::NewGuid().ToString())
+                New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                [System.IO.Compression.ZipFile]::ExtractToDirectory($vsix.FullName, $extractDir)
+                # Look for MSBuild extensions inside the VSIX payload
+                $candidate = Get-ChildItem -Path $extractDir -Recurse -Directory -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'MSBuild.*Microsoft.*VC.*v160.*Platforms.*WindowsKernelModeDriver10.0.*PlatformToolsets' } | Select-Object -First 1
+                if ($candidate) {
+                  Write-Host "Copying toolset files from $($candidate.FullName) to $toolsetsPath"
+                  New-Item -ItemType Directory -Path $toolsetsPath -Force | Out-Null
+                  Copy-Item -Path (Join-Path $candidate.FullName '*') -Destination $toolsetsPath -Recurse -Force
+                } else {
+                  Write-Warning "Could not find MSBuild toolset content inside VSIX at $extractDir"
+                }
+                # Re-check
+                if (Test-Path $toolsetPath) {
+                  Write-Host "✅ Toolset became available after manual extraction"
+                } else {
+                  Write-Warning "Toolset still missing after manual extraction"
+                }
               }
             }
           } else {
             Write-Host "✅ WindowsKernelModeDriver10.0 toolset already available"
           }
 
-          # Set environment variables to help MSBuild locate SDK/WDK
+          # Set environment variables to help MSBuild locate SDK/WDK and VC targets
           Write-Host "Setting WDK/SDK environment variables..."
           [Environment]::SetEnvironmentVariable("WindowsSDKDir", "${env:ProgramFiles(x86)}\Windows Kits\10\", "Process")
           [Environment]::SetEnvironmentVariable("WindowsSDKVersion", "10.0.19041.0\\", "Process")
+          [Environment]::SetEnvironmentVariable("VCTargetsPath", (Join-Path $vcV160 ''), "Process")
 
       - name: Integrate WDK with VS2019
         shell: pwsh
@@ -438,6 +479,20 @@ jobs:
           }
           Write-Host "Using MSBuild: $msbuild"
 
+          # Diagnostics: list VC/v160 platforms/toolsets
+          $vcRoot = Join-Path (Split-Path (Split-Path (Split-Path $msbuild) -Parent) -Parent) 'Microsoft\VC\v160'
+          Write-Host "VC v160 root: $vcRoot (exists: $(Test-Path $vcRoot))"
+          $pt = Join-Path $vcRoot 'Platforms'
+          if (Test-Path $pt) {
+            Write-Host 'Platform folders:'
+            Get-ChildItem $pt -Directory | ForEach-Object { Write-Host " - $($_.FullName)" }
+            $wdkToolsets = Join-Path $pt 'WindowsKernelModeDriver10.0\PlatformToolsets'
+            Write-Host "WDK toolsets path: $wdkToolsets (exists: $(Test-Path $wdkToolsets))"
+            if (Test-Path $wdkToolsets) {
+              Get-ChildItem $wdkToolsets -Directory | ForEach-Object { Write-Host "   * Toolset: $($_.Name)" }
+            }
+          }
+
           # Ensure Windows SDK 10.0.19041.0 exists
           $sdk19041Path = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\10.0.19041.0"
           if (-not (Test-Path $sdk19041Path)) {
@@ -446,9 +501,15 @@ jobs:
           }
 
           # Build with OutDir override and disable post-build signing
+          # Ensure environment hints for SDK and VC targets
+          $env:WindowsSDKDir = "${env:ProgramFiles(x86)}\Windows Kits\10\"
+          $env:WindowsSDKVersion = "10.0.19041.0\"
+          $env:VCTargetsPath = Join-Path (Split-Path (Split-Path (Split-Path $msbuild) -Parent) -Parent) 'Microsoft\VC\v160\'
+
           & "$msbuild" "DBKKernel.sln" /m /t:Build /p:Configuration="Release without sig" /p:Platform=x64 `
             /p:PlatformToolset=WindowsKernelModeDriver10.0 `
             /p:WindowsTargetPlatformVersion=10.0.19041.0 `
+            /p:VCTargetsPath="$env:VCTargetsPath" `
             /p:OutDir="$(Resolve-Path .)\build\" `
             /p:PostBuildEventUseInBuild=false
           if ($LASTEXITCODE -ne 0) {
