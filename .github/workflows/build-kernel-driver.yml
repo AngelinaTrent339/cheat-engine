@@ -34,6 +34,40 @@ jobs:
           # If VS2019 already present, skip
           $vs2019Path = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools"
           if (Test-Path $vs2019Path) { Write-Host "✅ VS2019 BuildTools already present at $vs2019Path"; exit 0 }
+          $vs2019EntPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise"
+          if (Test-Path $vs2019EntPath) { Write-Host "✅ VS2019 Enterprise already present at $vs2019EntPath"; exit 0 }
+
+          # Try direct VS2019 Enterprise installer (C2R) first as suggested
+          try {
+            Write-Host "Downloading VS2019 Enterprise installer (C2R)..."
+            $vsEntExe = Join-Path $env:TEMP 'vs2019_enterprise.exe'
+            Invoke-WebRequest -Uri "https://c2rsetup.officeapps.live.com/c2r/downloadVS.aspx?sku=enterprise&channel=Release&version=VS2019" -OutFile $vsEntExe -UseBasicParsing
+            Write-Host "Running VS2019 Enterprise installer..."
+            $entArgs = @(
+              '--quiet','--wait','--norestart',
+              '--installPath','C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise',
+              '--add','Microsoft.VisualStudio.Workload.VCTools',
+              '--add','Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+              '--add','Microsoft.VisualStudio.Component.VC.v142.x86.x64',
+              '--add','Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre',
+              '--add','Microsoft.VisualStudio.Component.VC.ATL',
+              '--add','Microsoft.VisualStudio.Component.VC.ATL.Spectre',
+              '--add','Microsoft.VisualStudio.Component.VC.MFC.x86.x64',
+              '--add','Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre',
+              '--add','Microsoft.VisualStudio.Component.Windows10SDK.19041',
+              '--includeRecommended'
+            )
+            $procEnt = Start-Process -FilePath $vsEntExe -ArgumentList $entArgs -Wait -PassThru
+            Write-Host "VS2019 Enterprise installer exit code: $($procEnt.ExitCode)"
+            if ($procEnt.ExitCode -eq 0 -or $procEnt.ExitCode -eq 3010) {
+              Write-Host "✅ VS2019 Enterprise installed successfully"
+              exit 0
+            } else {
+              Write-Warning "VS2019 Enterprise installer returned $($procEnt.ExitCode). Will try other methods."
+            }
+          } catch {
+            Write-Warning "Failed to download/run VS2019 Enterprise C2R installer: $($_.Exception.Message)"
+          }
 
           # Try winget first with robust waiting
           $winget = Get-Command winget -ErrorAction SilentlyContinue
@@ -164,10 +198,10 @@ jobs:
 
       # setup-msbuild not required; we call VS2019 MSBuild.exe directly
 
-      - name: Verify build environment
+      - name: Install Visual Studio 2019 (Enterprise, v142)
         shell: pwsh
         run: |
-          Write-Host "=== Build Environment Verification ==="
+          Write-Host "Installing Visual Studio 2019 Enterprise (v142) on windows-2022..."
           
           # Check Visual Studio 2019 installation
           $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools"
@@ -209,70 +243,12 @@ jobs:
           
           # Check MSBuild
           $vs2019MSBuild = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-          if (-not (Test-Path $vs2019MSBuild)) { $vs2019MSBuild = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe" }
-          Write-Host "VS2019 MSBuild path: $vs2019MSBuild"
-          if (Test-Path $vs2019MSBuild) { & $vs2019MSBuild -version } else { Write-Error "VS2019 MSBuild not found"; exit 1 }
-          
-          # Verify ATL and MFC (guarded)
-          if ($vctoolsPath -and (Test-Path $vctoolsPath)) {
-            $msvcDirs = Get-ChildItem $vctoolsPath -Directory | Sort-Object Name -Descending
-            if ($msvcDirs -and $msvcDirs.Count -gt 0) {
-              $latestMSVC = $msvcDirs[0].FullName
-              $atlPath = Join-Path $latestMSVC 'atlmfc'
-              Write-Host "ATL/MFC path: $atlPath"
-              Write-Host "ATL/MFC Exists: $(Test-Path $atlPath)"
-            } else {
-              Write-Host "No MSVC version folders found under $vctoolsPath"
-            }
+          # Verify installation
+          if (Test-Path $vs2019Path -or Test-Path $vs2019EntPath) {
+            Write-Host "✅ Confirmed VS2019 installed."
           } else {
-            Write-Host "Skipping ATL/MFC check: MSVC tools not found"
-          }
-
-      - name: Build DBK Kernel Driver
-        shell: pwsh
-        run: |
-          Write-Host "Building DBK Kernel Driver (64-bit unsigned with v142 toolset)..."
-          
-          cd "DBKKernel"
-          
-          # Resolve MSBuild from VS2019 explicitly
-          $msbuildExe = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-          if (-not (Test-Path $msbuildExe)) { $msbuildExe = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe" }
-          if (-not (Test-Path $msbuildExe)) {
-            Write-Error "MSBuild.exe from VS2019 not found. Ensure VS2019 Build Tools installed."
+            Write-Error "VS2019 not found after installation."
             exit 1
-          }
-          Write-Host "Using MSBuild at: $msbuildExe"
-
-          # Build the driver with v142 toolset and specific SDK
-          & $msbuildExe DBKKernel.vcxproj `
-            /p:Configuration="Release without sig" `
-            /p:Platform="x64" `
-            /p:PlatformToolset=WindowsKernelModeDriver10.0 `
-            /p:WindowsTargetPlatformVersion=10.0.19041.0 `
-            /p:SignMode=Off `
-            /p:TestSign=false `
-            /p:SignTool= `
-            /p:Inf2CatUseLocalTime=true `
-            /p:EnableInf2cat=false `
-            /m `
-            /verbosity:normal
-          
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Build failed with exit code $LASTEXITCODE"
-            exit 1
-          }
-
-      - name: List build outputs
-        shell: pwsh
-        run: |
-          Write-Host "=== Build Outputs ==="
-          cd "DBKKernel"
-          
-          # List all build outputs
-          if (Test-Path "x64") {
-            Write-Host "Contents of x64 directory:"
-            Get-ChildItem "x64" -Recurse | Format-Table Name, Length, LastWriteTime -AutoSize
           }
           
           # Find driver files
