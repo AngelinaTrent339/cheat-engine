@@ -447,20 +447,6 @@ makecab /f "$(ProjectDir)\ultimap2-64.ddf"
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\DBKFunc.c" />
-    <ClCompile Include="..\sigcheck.c">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug but signed|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug but signed|ARM64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug but signed|ARM'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug but signed|x64'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="..\ultimap2.c" />
     <ClCompile Include="apic.c" />
     <ClCompile Include="IOPLDispatcher.c" />
@@ -468,7 +454,6 @@ makecab /f "$(ProjectDir)\ultimap2-64.ddf"
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\DBKFunc.h" />
-    <ClInclude Include="..\sigcheck.h" />
     <ClInclude Include="..\ultimap2.h" />
     <ClInclude Include="apic.h" />
     <ClInclude Include="IOPLDispatcher.h" />

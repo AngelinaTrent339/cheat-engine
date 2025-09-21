@@ -52,9 +52,6 @@
     <ClCompile Include="processlist.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="sigcheck.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="threads.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -112,9 +109,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="processlist.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="sigcheck.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="tdiwrapper.h">

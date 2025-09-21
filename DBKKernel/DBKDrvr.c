@@ -22,11 +22,6 @@
 #include "ultimap2\apic.h"
 
 
-#if (AMD64 && TOBESIGNED)
-#include "sigcheck.h"
-#endif
-
-
 #ifdef CETC
 	#include "cetc.h"
 #endif
@@ -553,15 +548,6 @@ NTSTATUS DispatchCreate(IN PDEVICE_OBJECT DeviceObject,
 	if (SeSinglePrivilegeCheck(sedebugprivUID, UserMode))
 	{		
 		Irp->IoStatus.Status = STATUS_SUCCESS;
-#ifdef AMD64
-#ifdef TOBESIGNED
-		{
-			NTSTATUS s=SecurityCheck();	
-			Irp->IoStatus.Status = s; 		
-		}
-	//	DbgPrint("Returning %x (and %x)\n", Irp->IoStatus.Status, s);
-#endif
-#endif
 
 
 	}

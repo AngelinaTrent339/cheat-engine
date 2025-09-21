@@ -17,10 +17,6 @@ jumps into dbvm's os entry point
 #include "vmxoffload.h"
 #include "vmxhelper.h"
 
-#ifdef TOBESIGNED
-#include "sigcheck.h"
-#endif
-
 unsigned char *vmm;
 
 #pragma pack(2) 

@@ -34,9 +34,6 @@
     <ClCompile Include="IOPLDispatcher.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\sigcheck.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="apic.h">
@@ -52,9 +49,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\DBKFunc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\sigcheck.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
