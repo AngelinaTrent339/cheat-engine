@@ -1949,8 +1949,27 @@ int handleCPUID(VMRegisters *vmregisters)
       vmregisters->rcx=vmregisters->rcx | (1 << 27); //the guest has activated osxsave , represent that in cpuid
   }
 
-  // Block hypervisor CPUID leaves (0x40000000-0x4000000F)
-  if ((oldeax >= 0x40000000) && (oldeax <= 0x4000000F))
+  // Hide AMD SVM features (0x8000000A) - critical for universal detection
+  if (oldeax == 0x8000000A)
+  {
+    // Zero all SVM feature bits to hide virtualization completely
+    vmregisters->rax = 0;
+    vmregisters->rbx = 0;
+    vmregisters->rcx = 0;
+    vmregisters->rdx = 0;
+  }
+
+  // Hide extended features that could reveal virtualization
+  if (oldeax == 0x80000001)
+  {
+    // Clear SVM bit (bit 2 in ECX) and other virtualization hints
+    vmregisters->rcx = vmregisters->rcx & (~(1ULL << 2));   // Clear SVM
+    vmregisters->rdx = vmregisters->rdx & (~(1ULL << 19));  // Clear MP
+    vmregisters->rdx = vmregisters->rdx & (~(1ULL << 13));  // Clear other flags
+  }
+
+  // Block hypervisor CPUID leaves (0x40000000-0x400000FF)
+  if ((oldeax >= 0x40000000) && (oldeax <= 0x400000FF))
   {
     // Return invalid/zero values to hide hypervisor presence
     vmregisters->rax = 0;
@@ -1958,12 +1977,6 @@ int handleCPUID(VMRegisters *vmregisters)
     vmregisters->rcx = 0;
     vmregisters->rdx = 0;
   }
-
-  //if (oldeax==0x80000001)
-  //{
-//    vmregisters->edx = vmregisters->edx & (0xffffffff ^ ((1<<19) | (1<<13)));
-
-  //}
 
   /*
   if (oldeax==0x80000002)
@@ -4015,7 +4028,8 @@ int handle_rdtsc(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     if ((realtime-currentcpuinfo->lastTSCTouch)<(QWORD)adjustTimestampCounterTimeout) //todo: and not a forbidden RIP
     {
 
-      int off=20+(realtime & 0xf);
+      // Add randomized jitter to avoid detection patterns
+      int off=20+(realtime & 0x1f) + ((realtime >> 8) & 0x7);
 
 
       t=currentcpuinfo->lowestTSC+off;

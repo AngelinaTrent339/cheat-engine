@@ -1057,16 +1057,8 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
 
 
           case 0xc0000080://efer
-            //update LMA
-
-            if ((currentcpuinfo->efer >> 12) & 1) //just give it the full EFER if it has enabled svmx as well
-              currentcpuinfo->efer=currentcpuinfo->vmcb->EFER;
-            else
-            {
-              currentcpuinfo->efer=currentcpuinfo->vmcb->EFER & ~(1<<12); //everything except this bit
-            }
-
-            value=currentcpuinfo->efer;
+            // Always hide SVME from guest reads (clear bit 12)
+            value=currentcpuinfo->vmcb->EFER & ~(1ULL<<12);
             break;
 
           case VM_HSAVE_PA_MSR:
@@ -1397,6 +1389,22 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
         // Clear hypervisor-present bit and VMX bit in ECX
         c = c & (~(1ULL << 31));
         c = c & (~(1ULL << 5));
+      }
+
+      // Hide AMD SVM features (0x8000000A) - critical for AMD detection
+      if (oldeax == 0x8000000AULL)
+      {
+        // Zero all SVM feature bits to hide virtualization completely
+        a = 0; b = 0; c = 0; d = 0;
+      }
+
+      // Hide extended AMD features that could reveal virtualization
+      if (oldeax == 0x80000001ULL)
+      {
+        // Clear SVM bit (bit 2 in ECX) and other virtualization hints
+        c = c & (~(1ULL << 2));   // Clear SVM
+        d = d & (~(1ULL << 19));  // Clear MP (if present)
+        d = d & (~(1ULL << 13));  // Clear other potential flags
       }
 
       // Hide hypervisor leaves entirely

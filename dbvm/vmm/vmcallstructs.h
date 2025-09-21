@@ -11,9 +11,9 @@
 
 typedef struct
 {
-  DWORD size;
   DWORD password2;
   DWORD command;
+  DWORD size;
 } __attribute__((__packed__))  VMCALL_BASIC, *PVMCALL_BASIC;
 
 typedef struct

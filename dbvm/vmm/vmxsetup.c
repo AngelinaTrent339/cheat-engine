@@ -284,6 +284,10 @@ void setupVMX_AMD(pcpuinfo currentcpuinfo)
   // Ensure CPUID is intercepted on AMD so it can be masked
   currentcpuinfo->vmcb->InterceptCPUID=1;
 
+  // Force RDTSC/RDTSCP intercepts to eliminate timing-based detection
+  currentcpuinfo->vmcb->InterceptRDTSC=1;
+  currentcpuinfo->vmcb->InterceptRDTSCP=1;
+
   // currentcpuinfo->vmcb->InterceptINTR=1;
  // currentcpuinfo->vmcb->InterceptDR0_15Write=(1<<6); //dr6 so I can see what changed
 
@@ -1568,23 +1572,23 @@ void setupVMX(pcpuinfo currentcpuinfo)
     //3072-4095: Write bitmap for high MSRs
 
     //set it to break on msr's handling sysenter
-    //read for sysenter
+    //read for sysenter - DISABLED TO REDUCE VM EXIT PATTERNS
 
-    vmx_setMSRReadExit(0x174);
-    vmx_setMSRReadExit(0x175);
-    vmx_setMSRReadExit(0x176);
+    // vmx_setMSRReadExit(0x174);   // Disabled - reduces exits
+    // vmx_setMSRReadExit(0x175);   // Disabled - reduces exits  
+    // vmx_setMSRReadExit(0x176);   // Disabled - reduces exits
 
-    vmx_setMSRWriteExit(0x174);
-    vmx_setMSRWriteExit(0x175);
-    vmx_setMSRWriteExit(0x176);
+    // vmx_setMSRWriteExit(0x174);  // Disabled - reduces exits
+    // vmx_setMSRWriteExit(0x175);  // Disabled - reduces exits
+    // vmx_setMSRWriteExit(0x176);  // Disabled - reduces exits
 
-
+    // Only keep EFER for critical virtualization - others disabled to reduce detection
     vmx_setMSRReadExit(0xc0000080);
     vmx_setMSRWriteExit(0xc0000080);
 
-    //break on IA32_FEATURE_CONTROL_MSR read and write
-    vmx_setMSRReadExit(IA32_FEATURE_CONTROL_MSR);
-    vmx_setMSRWriteExit(IA32_FEATURE_CONTROL_MSR);
+    // Disable feature control to reduce exits - was causing detection
+    // vmx_setMSRReadExit(IA32_FEATURE_CONTROL_MSR);
+    // vmx_setMSRWriteExit(IA32_FEATURE_CONTROL_MSR);
 
 
 
