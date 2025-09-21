@@ -176,28 +176,27 @@ vmcalltest_asm:
   sub rsp,12
 
   mov dword [rsp],12
-  mov rdx,[Password2]
-  mov dword [rsp+4],edx
+  mov dword [rsp+4],0x5E8A1C7F
   mov dword [rsp+8],0
 
   ;xchg bx,bx
   mov rax,rsp
-  mov rdx,[Password1]
+  mov rdx,0xA7B9C2E4F6D8A1B3
   call [vmcall_instr]
 
   add rsp,8+12
   ret
 
 
-extern Password1
-extern Password3
+;extern Password1
+;extern Password3
 
 global _vmcall
 _vmcall:
   sub rsp,8
   mov rax,rdi  ;data
-  mov rdx,[Password1]  ;password1
-  mov rcx,[Password3]
+  mov rdx,0xA7B9C2E4F6D8A1B3  ;password1
+  mov rcx,0x9F3E7A5B2C4D8E1A  ;password3
   call [vmcall_instr]
   add rsp,8
   ret
@@ -212,8 +211,7 @@ vmcall_setintredirects:
   sub rsp,0x20
 
   mov dword [rsp],0x1c ;size of struct
-  mov rdx,[Password2]
-  mov dword [rsp+4],edx ;p2
+  mov dword [rsp+4],0x5E8A1C7F ;p2
   mov dword [rsp+8],9 ;VMCALL_REDIRECTINT1
 
   mov dword [rsp+0xc],1 ;idt redirect instead of intredirect
@@ -225,7 +223,7 @@ vmcall_setintredirects:
 
    ;int3
   mov rax,rsp
-  mov rdx,[Password1] ;p1
+  mov rdx,0xA7B9C2E4F6D8A1B3 ;p1
   call [vmcall_instr]
 
   mov rax,rsp
