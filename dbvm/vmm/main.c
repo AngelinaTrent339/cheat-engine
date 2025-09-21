@@ -764,7 +764,7 @@ AfterBPTest:
   //create a page filled with 0xff (for faking non present memory access)
   ffpage=malloc(4096);
   for (i=0; i<4096; i++)
-    ffpage[i]=0xda;
+    ffpage[i]=0xb7;
 
   sendstringf("Physical address of ffpage=%6\n\r",(UINT64)VirtualToPhysical(ffpage));
 

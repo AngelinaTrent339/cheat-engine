@@ -629,7 +629,7 @@ int handle_vmlaunch(pcpuinfo currentcpuinfo, VMRegisters *vmregisters UNUSED)
   //sendvmstateFull(currentcpuinfo, vmregisters);
 
 
-  return 0xda00; //launch with the last entrystate
+  return 0xb700; //launch with the last entrystate
 }
 
 int handle_vmresumeFail(pcpuinfo currentcpuinfo)
@@ -678,9 +678,9 @@ int handle_vmresume(pcpuinfo currentcpuinfo, VMRegisters *vmregisters UNUSED)
 
   //vmwrite(vm_guest_interruptability_state,BLOCKINGBYSTI);
   if (hasVMCSShadowingSupport)
-    return 0xda00; //do a launch instead of resume
+    return 0xb700; //do a launch instead of resume
 
-  return 0xda01; //launch with the last entrystate and do a resume
+  return 0xb701; //launch with the last entrystate and do a resume
 }
 
 int handle_invept(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
@@ -1441,8 +1441,8 @@ int handleIntelVMXInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
 
     if (currentcpuinfo->guest_error)
     {
-      if (currentcpuinfo->guest_error==0xda00)  sendstringf("%6: handleIntelVMXInstruction %d (VMLAUNCH ERROR)\n", vmread(vm_guest_rip), exit_reason);
-      if (currentcpuinfo->guest_error==0xda01)  sendstringf("%6: handleIntelVMXInstruction %d (VMRESUME ERROR)\n", vmread(vm_guest_rip), exit_reason);
+      if (currentcpuinfo->guest_error==0xb700)  sendstringf("%6: handleIntelVMXInstruction %d (VMLAUNCH ERROR)\n", vmread(vm_guest_rip), exit_reason);
+      if (currentcpuinfo->guest_error==0xb701)  sendstringf("%6: handleIntelVMXInstruction %d (VMRESUME ERROR)\n", vmread(vm_guest_rip), exit_reason);
     }
     //else
     //  sendstringf("%6: handleIntelVMXInstruction %d (%s)\n", vmread(vm_guest_rip), exit_reason, getVMExitReassonString());
@@ -1466,12 +1466,12 @@ int handleIntelVMXInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
        */
         case vm_exit_vmclear: r=handle_vmclear(currentcpuinfo, vmregisters); break;
   case vm_exit_vmlaunch: r=handle_vmlaunch(currentcpuinfo, vmregisters); break;
-  case 0xda00: r=handle_vmlaunchFail(currentcpuinfo); break;
+  case 0xb700: r=handle_vmlaunchFail(currentcpuinfo); break;
         case 21: r=handle_vmptrld(currentcpuinfo, vmregisters); break;
         case 22: r=handle_vmptrst(currentcpuinfo, vmregisters); break;
         case 23: r=handle_vmread(currentcpuinfo, vmregisters); break;
   case 24: r=handle_vmresume(currentcpuinfo, vmregisters); break;
-  case 0xda01: r=handle_vmresumeFail(currentcpuinfo); break;
+  case 0xb701: r=handle_vmresumeFail(currentcpuinfo); break;
         case 25: r=handle_vmwrite(currentcpuinfo, vmregisters); break;
         case vm_exit_vmxoff: r=handle_vmxoff(currentcpuinfo, vmregisters); break;
         case vm_exit_vmxon: r=handle_vmxon(currentcpuinfo, vmregisters); break;

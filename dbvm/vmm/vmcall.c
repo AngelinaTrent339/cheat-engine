@@ -925,7 +925,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
   int error;
   QWORD pagefaultaddress;
 
-  //sendstringf("_handleVMCallInstruction (%d)\n", vmcall_instruction[2]);
+  //sendstringf("_handleVMCallInstruction (%d)\n", vmcall_instruction[1]);
 
   currentcpuinfo->LastVMCall=vmcall_instruction[1];
 
@@ -2331,9 +2331,9 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
  * edx=level1pass (if false, not even a pagefault is raised)
  *
  * vmcall_instruction:
- * ULONG structsize
- * ULONG level2pass;
+ * ULONG password2
  * ULONG command
+ * ULONG size
  * ... Extra data depending on command, see doc, "vmcall commands"
  *
  */
@@ -2452,14 +2452,14 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   //still here, so password valid and data structure paged in memory
   if (vmcall_instruction_size>12) //remap to take the extra parameters into account
   {
-//    sendstringf("Remapping to support size: %8\n\r",vmcall_instruction[0]);
+//    sendstringf("Remapping to support size: %8\n\r",vmcall_instruction[2]);
     int neededsize=vmcall_instruction_size;
     unmapVMmemory(vmcall_instruction, vmcall_instruction_size);
     vmcall_instruction=(ULONG *)mapVMmemory(currentcpuinfo, vmregisters->rax, neededsize, &error, &pagefaultaddress);
   }
 
 #ifdef DEBUG
-  //int totaldwords = vmcall_instruction[0] / 4;
+  //int totaldwords = vmcall_instruction[2] / 4;
   //int i;
   //for (i=3; i<totaldwords; i++)
   //{
@@ -2481,7 +2481,7 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   }
 
 
-  //sendstringf("Handling vmcall command %d\n\r",vmcall_instruction[2]);
+  //sendstringf("Handling vmcall command %d\n\r",vmcall_instruction[1]);
 
   int r=_handleVMCallInstruction(currentcpuinfo, vmregisters, vmcall_instruction);
   unmapVMmemory(vmcall_instruction, vmcall_instruction_size);

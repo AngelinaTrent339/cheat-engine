@@ -671,8 +671,8 @@ void LaunchDBVM()
       int r;
 
       vmcallinfo.size=sizeof(vmcallinfo);
-      vmcallinfo.level2pass=password2;
-      vmcallinfo.command=38; //VMCALL_GETMEM
+      vmcallinfo.password2=password2;
+      vmcallinfo.command=89; //VMCALL_GETMEM
       UINT64 freemem,fullpages;
       dovmcall2(&vmcallinfo, password1, &freemem,&fullpages);
 
@@ -700,8 +700,8 @@ void LaunchDBVM()
 
 
       vmcallinfo.size=sizeof(vmcallinfo);
-      vmcallinfo.level2pass=password2;
-      vmcallinfo.command=79; //HIDE DBVM MEMORY local cpu
+      vmcallinfo.password2=password2;
+      vmcallinfo.command=79; //VMCALL_ULTIMAP
       dovmcall(&vmcallinfo, password1);
 
 

@@ -4362,8 +4362,8 @@ int handleVMEvent_internal(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FX
     }
 
   case 19 ... 27 : //VMX instruction called
-  case 0xda00: //special exit reasons (vmresume/vmlaunch failures)
-  case 0xda01:
+  case 0xb700: //special exit reasons (vmresume/vmlaunch failures)
+  case 0xb701:
     {
       ddDrawRectangle(0,DDVerticalResolution-100,100,100,0xff0000);
       //while (1);
@@ -4458,7 +4458,7 @@ int handleVMEvent_internal(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FX
       sendstring("(Un)expected monitor trap flag\n\r");
 #ifndef DEBUG
       ddDrawRectangle(0,DDVerticalResolution-100,100,100,0xff0000);
-      while (1) outportb(0x80,0xda);
+      while (1) outportb(0x80,0xb7);
 #else
       return handleSingleStep(currentcpuinfo, vmregisters, fxsave);
       //return 0;

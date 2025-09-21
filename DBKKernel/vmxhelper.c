@@ -715,9 +715,9 @@ unsigned int vmx_add_memory(UINT64 *list, int count)
 	DbgPrint("vmx_add_memory(%p,%d)\n", list, count);
 	DbgPrint("vmx_add_memory(vmx_password1=%x,vmx_password2=%x)\n", vmx_password1, vmx_password2);
 
-	DbgPrint("structsize at offset %d\n", (UINT64)(&vmcallinfo->structsize) - (UINT64)vmcallinfo);
-	DbgPrint("level2pass at offset %d\n", (UINT64)(&vmcallinfo->level2pass) - (UINT64)vmcallinfo);
+	DbgPrint("password2 at offset %d\n", (UINT64)(&vmcallinfo->password2) - (UINT64)vmcallinfo);
 	DbgPrint("command at offset %d\n", (UINT64)(&vmcallinfo->command) - (UINT64)vmcallinfo);
+	DbgPrint("size at offset %d\n", (UINT64)(&vmcallinfo->size) - (UINT64)vmcallinfo);
 	DbgPrint("PhysicalPages[0] at offset %d\n", (UINT64)(&vmcallinfo->PhysicalPages[0]) - (UINT64)vmcallinfo);
 	DbgPrint("PhysicalPages[1] at offset %d\n", (UINT64)(&vmcallinfo->PhysicalPages[1]) - (UINT64)vmcallinfo);
 

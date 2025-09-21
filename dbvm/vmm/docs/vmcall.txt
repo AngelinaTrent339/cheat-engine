@@ -197,4 +197,4 @@ QWORD addressofthestore
 
 -----
 note:
-result of 0xdadead means that the function was not implemented(yet)
+result of 0xb7dead means that the function was not implemented(yet)

@@ -77,33 +77,37 @@ const
   VMCALL_DISABLE_EPT = 58;
 
   VMCALL_GET_STATISTICS = 167;
-  VMCALL_WATCH_EXECUTES = 60;
+  VMCALL_WATCH_EXECUTES = 206;
 
-  VMCALL_SETTSCADJUST = 61;
-  VMCALL_SETSPEEDHACK = 62;
+  VMCALL_SETTSCADJUST = 143;
+  VMCALL_SETSPEEDHACK = 78;
+  VMCALL_CAUSEDDEBUGBREAK = 251;
 
+  VMCALL_DISABLE_TSCADJUST = 124;
+
+  VMCALL_CLOAKEX_ACTIVATE = 189;
 
   VMCALL_DISABLETSCHOOK=66;
-  VMCALL_ENABLETSCHOOK=67;
+  VMCALL_ENABLETSCHOOK=233;
 
-  VMCALL_WATCH_GETSTATUS=68;
+  VMCALL_WATCH_GETSTATUS=118;
 
-  VMCALL_CLOAK_TRACEONBP=69;
-  VMCALL_CLOAK_TRACEONBP_REMOVE=70;
-  VMCALL_CLOAK_TRACEONBP_READLOG=71;
-  VMCALL_CLOAK_TRACEONBP_GETSTATUS=72;
-  VMCALL_CLOAK_TRACEONBP_STOPTRACE=73;
+  VMCALL_CLOAK_TRACEONBP=172;
+  VMCALL_CLOAK_TRACEONBP_REMOVE=85;
+  VMCALL_CLOAK_TRACEONBP_READLOG=248;
+  VMCALL_CLOAK_TRACEONBP_GETSTATUS=131;
+  VMCALL_CLOAK_TRACEONBP_STOPTRACE=94;
 
-  VMCALL_GETBROKENTHREADLISTSIZE=74;
-  VMCALL_GETBROKENTHREADENTRYSHORT=75;
-  VMCALL_GETBROKENTHREADENTRYFULL=76;
-  VMCALL_SETBROKENTHREADENTRYFULL=77;
-  VMCALL_RESUMEBROKENTHREAD=78;
+  VMCALL_GETBROKENTHREADLISTSIZE=207;
+  VMCALL_GETBROKENTHREADENTRYSHORT=144;
+  VMCALL_GETBROKENTHREADENTRYFULL=69;
+  VMCALL_SETBROKENTHREADENTRYFULL=232;
+  VMCALL_RESUMEBROKENTHREAD=119;
 
-  VMCALL_HIDEDBVMPHYSICALADDRESSES=79;
-  VMCALL_HIDEDBVMPHYSICALADDRESSESALL=80;
+  VMCALL_HIDEDBVMPHYSICALADDRESSES=176;
+  VMCALL_HIDEDBVMPHYSICALADDRESSESALL=53;
 
-  VMCALL_DEBUG_SETSPINLOCKTIMEOUT=254;
+  VMCALL_DEBUG_SETSPINLOCKTIMEOUT=86;
 
 
   //---
@@ -1047,9 +1051,9 @@ end;
 
 function dbvm_version: dword; stdcall;
 var vmcallinfo: record
-  structsize: dword;
-  level2pass: dword;
+  password2: dword;
   command: dword;
+  size: dword;
 end;
 begin
 
@@ -1101,9 +1105,9 @@ end;
 
 function dbvm_changeselectors(cs,ss,ds,es,fs,gs: dword): DWORD; stdcall;
 var vmcallinfo: record
-  structsize: dword;
-  level2pass: dword;
+  password2: dword;
   command: dword;
+  size: dword;
   cs,ss,ds,es,fs,gs: dword;
 end;
 begin
@@ -1122,9 +1126,9 @@ end;
 
 function dbvm_redirect_interrupt1(redirecttype: integer; newintvector: dword; int1cs: dword; int1eip: dword): dword; stdcall;
 var vmcallinfo: record
-  structsize: dword;
-  level2pass: dword;
+  password2: dword;
   command: dword;
+  size: dword;
   redirecttype: dword;
   intvector: dword;
   eip: uint64;
@@ -1148,9 +1152,9 @@ end;
 
 function dbvm_block_interrupts: DWORD; stdcall;
 var vmcallinfo: record
-  structsize: dword;
-  level2pass: dword;
+  password2: dword;
   command: dword;
+  size: dword;
   end;
 begin
   vmcallinfo.password2:=vmx_password2;
@@ -1162,9 +1166,9 @@ end;
 
 function dbvm_restore_interrupts: DWORD; stdcall;
 var vmcallinfo: record
-  structsize: dword;
-  level2pass: dword;
+  password2: dword;
   command: dword;
+  size: dword;
   end;
 begin
   vmcallinfo.password2:=vmx_password2;
@@ -1469,9 +1473,9 @@ end;
 
 function dbvm_watch_writes(PhysicalAddress: QWORD; size: integer; Options: DWORD; MaxEntryCount: Integer; UserModeLoop: qword=0; KernelModeLoop: qword=0): integer;
 var vmcallinfo: packed record
-      structsize: dword;   //0
-      level2pass: dword;   //4
-      command: dword;      //8
+      password2: dword;    //0
+      command: dword;      //4
+      size: dword;         //8
       PhysicalAddress: QWORD; //12
       OptionalField1: QWORD;
       OptionalField2: QWORD;
@@ -1521,9 +1525,9 @@ end;
 
 function dbvm_watch_reads(PhysicalAddress: QWORD; size: integer; Options: DWORD; MaxEntryCount: Integer; UserModeLoop: qword=0; KernelModeLoop: qword=0): integer;
 var vmcallinfo: packed record
-      structsize: dword;   //0
-      level2pass: dword;   //4
-      command: dword;      //8
+      password2: dword;    //0
+      command: dword;      //4
+      size: dword;         //8
       PhysicalAddress: QWORD; //12
       OptionalField1: QWORD;
       OptionalField2: QWORD;
@@ -1571,9 +1575,9 @@ end;
 
 function dbvm_watch_executes(PhysicalAddress: QWORD; size: integer; Options: DWORD; MaxEntryCount: Integer; UserModeLoop: qword=0; KernelModeLoop: qword=0): integer;
 var vmcallinfo: packed record
-      structsize: dword;   //0
-      level2pass: dword;   //4
-      command: dword;      //8
+      password2: dword;    //0
+      command: dword;      //4
+      size: dword;         //8
       PhysicalAddress: QWORD; //12
       OptionalField1:   QWORD;
       OptionalField2:   QWORD;
