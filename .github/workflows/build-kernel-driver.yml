@@ -171,10 +171,34 @@ jobs:
         run: |
           Write-Host "Installing Windows 10 SDK 2004 (10.0.19041.0)..."
           
+          # Debug: Check what Windows Kits are actually present
+          $windowsKitsPath = "${env:ProgramFiles(x86)}\Windows Kits"
+          Write-Host "Checking Windows Kits directory: $windowsKitsPath"
+          if (Test-Path $windowsKitsPath) {
+            Write-Host "Windows Kits directory exists, contents:"
+            Get-ChildItem $windowsKitsPath -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  - $($_.Name)" }
+            
+            $kits10Path = "$windowsKitsPath\10"
+            if (Test-Path $kits10Path) {
+              Write-Host "Windows Kits 10 directory exists, checking Include subdirectory:"
+              $includePath = "$kits10Path\Include"
+              if (Test-Path $includePath) {
+                Get-ChildItem $includePath -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  - $($_.Name)" }
+              } else {
+                Write-Host "  Include directory does not exist"
+              }
+            }
+          } else {
+            Write-Host "Windows Kits directory does not exist"
+          }
+          
           $sdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\10.0.19041.0"
+          Write-Host "Checking specific SDK path: $sdkPath"
+          Write-Host "Path exists: $(Test-Path $sdkPath)"
+          
           if (Test-Path $sdkPath) {
-            Write-Host "✅ Windows 10 SDK 10.0.19041.0 already installed. Skipping."
-            exit 0
+            Write-Host "⚠️ Windows 10 SDK 10.0.19041.0 path exists but forcing reinstall to ensure proper installation"
+            # Don't exit, continue with installation
           }
 
           # Download SDK installer directly
@@ -207,10 +231,39 @@ jobs:
         run: |
           Write-Host "Installing Windows Driver Kit..."
           
+          # Debug: Check what's at the WDK path
           $wdkInclude = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\wdf"
+          Write-Host "Checking WDK path: $wdkInclude"
+          Write-Host "Path exists: $(Test-Path $wdkInclude)"
+          
+          # Also check broader Windows Kits structure for WDK
+          $windowsKitsPath = "${env:ProgramFiles(x86)}\Windows Kits\10"
+          if (Test-Path $windowsKitsPath) {
+            Write-Host "Windows Kits 10 exists, checking for WDK components:"
+            $includePath = "$windowsKitsPath\Include"
+            if (Test-Path $includePath) {
+              Write-Host "Include directory contents:"
+              Get-ChildItem $includePath -ErrorAction SilentlyContinue | ForEach-Object { 
+                Write-Host "  - $($_.Name)"
+                if ($_.Name -eq "wdf") {
+                  Write-Host "    WDF directory found!"
+                  Get-ChildItem $_.FullName -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "      - $($_.Name)" }
+                }
+              }
+            }
+            
+            # Check for other WDK indicators
+            $libPath = "$windowsKitsPath\Lib"
+            if (Test-Path $libPath) {
+              Write-Host "Lib directory exists"
+              $versions = Get-ChildItem $libPath -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+              Write-Host "Available lib versions: $($versions -join ', ')"
+            }
+          }
+          
           if (Test-Path $wdkInclude) {
-            Write-Host "✅ WDK already installed. Skipping."
-            exit 0
+            Write-Host "⚠️ WDK path exists but forcing reinstall to ensure proper installation"
+            # Don't exit, continue with installation
           }
 
           # Download WDK
@@ -227,6 +280,60 @@ jobs:
           } else {
             Write-Warning "WDK installation completed with exit code $($process.ExitCode)"
           }
+
+      - name: Integrate WDK with VS2019
+        shell: pwsh
+        run: |
+          Write-Host "Integrating WDK with VS2019..."
+          
+          # Check if WDK MSBuild files exist
+          $wdkMSBuildPath = "${env:ProgramFiles(x86)}\Windows Kits\10\build"
+          if (-not (Test-Path $wdkMSBuildPath)) {
+            Write-Error "WDK MSBuild files not found at $wdkMSBuildPath"
+            exit 1
+          }
+          
+          # Find VS2019 MSBuild directory
+          $vsMSBuildPaths = @(
+            "C:\Program\MSBuild\Microsoft\VC",
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\MSBuild\Microsoft\VC",
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Microsoft\VC"
+          )
+          
+          $vsMSBuildPath = $null
+          foreach ($path in $vsMSBuildPaths) {
+            if (Test-Path $path) {
+              $vsMSBuildPath = $path
+              break
+            }
+          }
+          
+          if (-not $vsMSBuildPath) {
+            Write-Error "Could not find VS2019 MSBuild VC directory"
+            exit 1
+          }
+          
+          Write-Host "VS MSBuild path: $vsMSBuildPath"
+          Write-Host "WDK MSBuild path: $wdkMSBuildPath"
+          
+          # Check for WindowsKernelModeDriver10.0 toolset
+          $toolsetPath = Join-Path $vsMSBuildPath "v160\Platforms\x64\PlatformToolsets\WindowsKernelModeDriver10.0"
+          if (Test-Path $toolsetPath) {
+            Write-Host "✅ WindowsKernelModeDriver10.0 toolset already available"
+          } else {
+            Write-Host "WindowsKernelModeDriver10.0 toolset not found at $toolsetPath"
+            # List available toolsets
+            $platformsPath = Join-Path $vsMSBuildPath "v160\Platforms\x64\PlatformToolsets"
+            if (Test-Path $platformsPath) {
+              $toolsets = Get-ChildItem $platformsPath -Directory | Select-Object -ExpandProperty Name
+              Write-Host "Available toolsets: $($toolsets -join ', ')"
+            }
+          }
+          
+          # Set environment variable to help MSBuild find WDK
+          Write-Host "Setting WDK environment variables..."
+          [Environment]::SetEnvironmentVariable("WindowsSDKDir", "${env:ProgramFiles(x86)}\Windows Kits\10\", "Machine")
+          [Environment]::SetEnvironmentVariable("WindowsSDKVersion", "10.0.19041.0\", "Machine")
 
       - name: Integrate WDK with VS2019
         shell: pwsh
