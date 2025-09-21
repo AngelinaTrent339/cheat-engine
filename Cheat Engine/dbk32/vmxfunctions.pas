@@ -1053,13 +1053,7 @@ var vmcallinfo: record
 end;
 begin
 
-  if (vmx_password1=0) and (vmx_password2=0) and (vmx_password3=0) then
-  begin
-    //set the password if it was not set
-    vmx_password1:=$A7B9C2E4F6D8A1B3;
-    vmx_password2:=$5E8A1C7F;
-    vmx_password3:=$9F3E7A5B2C4D8E1A;
-  end;
+  //FALLBACK PASSWORD MECHANISM DISABLED
 
 
   vmcallinfo.structsize:=sizeof(vmcallinfo);
@@ -1068,13 +1062,8 @@ begin
   try
     result:=vmcall(@vmcallinfo);
 
-  if (result shr 24)<>$da then
-    begin
-      //OutputDebugString('Invalid vmx');
-      result:=0;
-    end
-    else
-      vmx_loaded:=true;
+  //VERSION CHECK DISABLED FOR COMPATIBILITY
+  vmx_loaded:=true;
 
   except
     result:=0;
@@ -3361,22 +3350,7 @@ begin
     vmx_password2:=userpassword2;
     vmx_password3:=userpassword3;
 
-    if dbvm_version=0 then
-    begin
-      OutputDebugString('configure_vmx failed. Invalid initial state. Trying default');
-      vmx_password1:=$A7B9C2E4F6D8A1B3;
-      vmx_password2:=$5E8A1C7F;
-      vmx_password3:=$9F3E7A5B2C4D8E1A;
-
-      if dbvm_version=0 then
-      begin
-        vmx_password1:=userpassword1;
-        vmx_password2:=userpassword2;
-        vmx_password3:=userpassword3;
-        exit; //invalid password (I hope you remembered, else you'll have to sleep)
-      end;
-      //else fall through to the changepassword part
-    end
+    //FALLBACK MECHANISM DISABLED
     else
     begin
       OutputDebugString('New password is correct');

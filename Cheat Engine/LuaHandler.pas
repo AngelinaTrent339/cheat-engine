@@ -8530,13 +8530,7 @@ begin
     exit;
   end;
 
-  //not yet loaded/initialized
-  if (vmx_password1=0) and (vmx_password2=0) and (vmx_password3=0) then
-  begin
-    vmx_password1:=$A7B9C2E4F6D8A1B3;
-    vmx_password2:=$5E8A1C7F;
-    vmx_password3:=$9F3E7A5B2C4D8E1A;
-  end;
+  //FALLBACK PASSWORD MECHANISM DISABLED
 
 
   result:=0;

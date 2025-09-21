@@ -63,3 +63,4 @@ Cheat Engine/MonoDataCollector/MonoDataCollector/x64/Release/MonoData.941726A9.t
 *.vsidx
 *.lpi
 Cheat Engine/MonoDataCollector/MonoDataCollector/MonoDataCollector.vcxproj
+m .  grep -v A7B9C2E4F6D8A1B3  grep -v 9F3E7A5B2C4D8E1A  head -20

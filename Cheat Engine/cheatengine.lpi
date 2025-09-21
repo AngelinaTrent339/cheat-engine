@@ -9,14 +9,14 @@
       </Flags>
       <SessionStorage Value="InProjectDir"/>
       <AutoCreateForms Value="False"/>
-  <Title Value="Woke Engine 7.5"/>
+      <Title Value="Woke Engine 7.5"/>
       <UseXPManifest Value="True"/>
       <XPManifest>
         <DpiAware Value="True"/>
-  <TextName Value="Woke Engine"/>
+        <ExecutionLevel Value="requireAdministrator"/>
+        <TextName Value="Woke Engine"/>
         <TextDesc Value="Scripting language and tools"/>
       </XPManifest>
-      <Icon Value="0"/>
     </General>
     <i18n>
       <EnableI18N Value="True"/>
@@ -30,7 +30,7 @@
       <BuildNr Value="7712"/>
       <Language Value="041C"/>
       <CharSet Value="04B0"/>
-  <StringTable CompanyName="Woke Engine" FileDescription="Woke Engine" ProductVersion="7.5"/>
+      <StringTable CompanyName="Woke Engine" FileDescription="Woke Engine" ProductVersion="7.5"/>
     </VersionInfo>
     <BuildModes Count="11">
       <Item1 Name="Release 32-Bit" Default="True"/>
@@ -827,7 +827,7 @@
     </RequiredPackages>
     <Units Count="424">
       <Unit0>
-    <Filename Value="cheatengine.lpr"/>
+        <Filename Value="cheatengine.lpr"/>
         <IsPartOfProject Value="True"/>
       </Unit0>
       <Unit1>
@@ -3070,7 +3070,7 @@
     <Version Value="11"/>
     <PathDelim Value="\"/>
     <Target>
-  <Filename Value="bin\wokeengine-$(TargetCPU)"/>
+      <Filename Value="bin\wokeengine-$(TargetCPU)"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir);$(LazarusDir)\ide\include\$(TargetOS);$(LazarusDir)\images;$(LazarusDir)\ideintf\images"/>
@@ -3120,28 +3120,6 @@
 -dNESTEDSTRUCTURES
 -donebytejumps
 -dNoODS"/>
-      <OtherDefines Count="20">
-        <Define0 Value="NOTMULTITHREADED"/>
-        <Define1 Value="benchmarkps"/>
-        <Define2 Value="cemain"/>
-        <Define3 Value="NDEBUG"/>
-        <Define4 Value="D3DDebug"/>
-        <Define5 Value="NOVMX"/>
-        <Define6 Value="CUSTOMFLOAT"/>
-        <Define7 Value="XDEBUG"/>
-        <Define8 Value="memleaksearch"/>
-        <Define9 Value="checkassembleralphabet"/>
-        <Define10 Value="memorymapped"/>
-        <Define11 Value="privatebuild"/>
-        <Define12 Value="DBVMFORAMDISWORKING"/>
-        <Define13 Value="NESTEDSTRUCTURES"/>
-        <Define14 Value="THREADNAMESUPPORT"/>
-        <Define15 Value="LINUXTCCTEST"/>
-        <Define16 Value="asserthexviewisthreadsafe"/>
-        <Define17 Value="DEBUGPROTOCOL"/>
-        <Define18 Value="NEWCHANGEREGONX86"/>
-        <Define19 Value="overflowdebug"/>
-      </OtherDefines>
     </Other>
   </CompilerOptions>
   <Debugging>

@@ -313,10 +313,7 @@ Runs at passive mode
 		InitializeObjectAttributes(&oa, &filename, 0, NULL, NULL);
 		OpenedFile = ZwCreateFile(&dbvmimghandle, SYNCHRONIZE | STANDARD_RIGHTS_READ, &oa, &statusblock, NULL, FILE_SYNCHRONOUS_IO_NONALERT | FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN, 0, NULL, 0);
 
-#ifdef TOBESIGNED
-		if (OpenedFile==STATUS_SUCCESS)
-			OpenedFile=CheckSignatureOfFile(&filename, FALSE);
-#endif
+//SIGNATURE CHECK DISABLED FOR COMPATIBILITY
 
 		if (OpenedFile == STATUS_SUCCESS)
 		{

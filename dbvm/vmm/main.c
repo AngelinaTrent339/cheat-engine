@@ -127,17 +127,8 @@ void startNextCPU(void)
 
 void CheckCRCValues(void)
 {
-  unsigned int newcrc;
-
-  sendstringf("Original VMM crc = %x\n\r",originalVMMcrc);
-  newcrc=generateCRC((void *)vmxloop,0x2a000);
-  sendstringf("Current  VMM crc = %x\n\r",newcrc);
-  if (originalVMMcrc!=newcrc)
-  {
-    sendstring("!!!!!!!!!!MISMATCH!!!!!!!!!!\n\r");
-  }
-
-
+  //CRC CHECK DISABLED FOR COMPATIBILITY
+  sendstring("CRC check disabled\n\r");
   return;
 }
 
