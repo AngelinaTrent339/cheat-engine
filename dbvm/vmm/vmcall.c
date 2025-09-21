@@ -2387,7 +2387,7 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     QWORD regP3;
     if (isAMD)
     {
-      regP1=currentcpuinfo->vmcb->RDX;
+      regP1=vmregisters->rdx;
       regP3=vmregisters->rcx; // rcx captured from VMRegisters
     }
     else
