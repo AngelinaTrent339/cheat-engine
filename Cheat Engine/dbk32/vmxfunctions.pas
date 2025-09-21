@@ -1061,10 +1061,10 @@ begin
   vmcallinfo.command:=VMCALL_GETVERSION;
   try
     result:=vmcall(@vmcallinfo);
-
-  //VERSION CHECK DISABLED FOR COMPATIBILITY
-  vmx_loaded:=true;
-
+    if (result shr 24)<>$da then
+      result:=0
+    else
+      vmx_loaded:=true;
   except
     result:=0;
   end;
@@ -3343,27 +3343,17 @@ begin
   //configure dbvm if possible
   OutputDebugString(format('configure_vmx(%.16x,%.8x,%.16x)', [userpassword1, userpassword2, userpassword3]));
 
-  //first try the default password and if it works change the password to the userdefined one
-  if (dbvm_version=0) then //invalid password to begin with, use this as a config
-  begin
-    vmx_password1:=userpassword1;
-    vmx_password2:=userpassword2;
-    vmx_password3:=userpassword3;
+  //apply the provided passwords
+  vmx_password1:=userpassword1;
+  vmx_password2:=userpassword2;
+  vmx_password3:=userpassword3;
 
-    //FALLBACK MECHANISM DISABLED
-    else
-    begin
-      OutputDebugString('New password is correct');
-      exit;
-    end;
-  end
-  else
-    OutputDebugString('configure_vmx: Old password was correct. Changing it (if needed)');
-
-  r:=dbvm_changepassword(userpassword1,userpassword2, userpassword3);
+  //attempt to set the new password triplet inside DBVM (will return 0 on success)
+  r:=dbvm_changepassword(userpassword1,userpassword2,userpassword3);
   OutputDebugString('dbvm_changepassword returned '+inttohex(r,1));
 
-  if r=0 then
+  //enable kernel-side vmcall usage when DBVM reports a valid version
+  if dbvm_version<>0 then
     configure_vmx_kernel;
   {$endif}
 end;

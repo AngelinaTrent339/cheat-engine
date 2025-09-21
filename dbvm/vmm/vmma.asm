@@ -142,6 +142,7 @@ mov [0x7170],r15
 
 
 afterbootvarcollection:
+call init_vmcall_instr
 call vmm_entry
 
 vmm_entry_exit:
@@ -165,6 +166,35 @@ vmcall_amd:
 global vmcall_intel
 vmcall_intel:
   vmcall
+  ret
+
+;initialize vmcall_instr based on CPUID vendor string
+global init_vmcall_instr
+init_vmcall_instr:
+  push rax
+  push rbx
+  push rcx
+  push rdx
+  xor eax,eax
+  cpuid
+  ; check for 'AuthenticAMD' (EBX, EDX, ECX)
+  cmp ebx,0x68747541
+  jne .notamd
+  cmp edx,0x69746e65
+  jne .notamd
+  cmp ecx,0x444d4163
+  jne .notamd
+  lea rax,[rel vmcall_amd]
+  mov [rel vmcall_instr], rax
+  jmp .done
+.notamd:
+  lea rax,[rel vmcall_intel]
+  mov [rel vmcall_instr], rax
+.done:
+  pop rdx
+  pop rcx
+  pop rbx
+  pop rax
   ret
 
 global vmcall_instr
