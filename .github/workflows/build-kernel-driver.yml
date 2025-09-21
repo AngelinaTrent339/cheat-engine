@@ -207,17 +207,9 @@ jobs:
           Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2311805" -OutFile $sdkInstaller -UseBasicParsing
           
           Write-Host "Installing SDK with required features..."
-          & $sdkInstaller /quiet /norestart /features `
-            OptionId.WindowsPerformanceToolkit `
-            OptionId.WindowsDesktopDebuggers `
-            OptionId.NetFxSoftwareDevelopmentKit `
-            OptionId.WindowsIPOverUSB `
-            OptionId.WindowsDesktopSigning `
-            OptionId.UWPManaged `
-            OptionId.UWPCPP `
-            OptionId.Win32CPP
-          
-          $exitCode = $LASTEXITCODE
+          $sdkArgs = "/quiet /norestart /features OptionId.WindowsPerformanceToolkit OptionId.WindowsDesktopDebuggers OptionId.NetFxSoftwareDevelopmentKit OptionId.WindowsIPOverUSB OptionId.WindowsDesktopSigning OptionId.UWPManaged OptionId.UWPCPP OptionId.Win32CPP"
+          $sdkProc = Start-Process -FilePath $sdkInstaller -ArgumentList $sdkArgs -PassThru -Wait
+          $exitCode = $sdkProc.ExitCode
           Write-Host "SDK installer exit code: $exitCode"
           
           if ($exitCode -eq 0 -or $exitCode -eq 3010) {
@@ -286,54 +278,85 @@ jobs:
         run: |
           Write-Host "Integrating WDK with VS2019..."
           
-          # Check if WDK MSBuild files exist
-          $wdkMSBuildPath = "${env:ProgramFiles(x86)}\Windows Kits\10\build"
-          if (-not (Test-Path $wdkMSBuildPath)) {
-            Write-Error "WDK MSBuild files not found at $wdkMSBuildPath"
-            exit 1
-          }
-          
-          # Find VS2019 MSBuild directory
-          $vsMSBuildPaths = @(
-            "C:\Program\MSBuild\Microsoft\VC",
-            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\MSBuild\Microsoft\VC",
-            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Microsoft\VC"
+          # Locate MSBuild to infer VS root and VC targets path
+          $msbuildCandidates = @(
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe",
+            "C:\\Program\\MSBuild\\Current\\Bin\\MSBuild.exe"
           )
-          
-          $vsMSBuildPath = $null
-          foreach ($path in $vsMSBuildPaths) {
-            if (Test-Path $path) {
-              $vsMSBuildPath = $path
-              break
-            }
-          }
-          
-          if (-not $vsMSBuildPath) {
-            Write-Error "Could not find VS2019 MSBuild VC directory"
+          $msbuild = $msbuildCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $msbuild) {
+            Write-Error "MSBuild.exe not found; cannot integrate WDK"
             exit 1
           }
-          
-          Write-Host "VS MSBuild path: $vsMSBuildPath"
-          Write-Host "WDK MSBuild path: $wdkMSBuildPath"
-          
-          # Check for WindowsKernelModeDriver10.0 toolset
-          $toolsetPath = Join-Path $vsMSBuildPath "v160\Platforms\x64\PlatformToolsets\WindowsKernelModeDriver10.0"
-          if (Test-Path $toolsetPath) {
-            Write-Host "✅ WindowsKernelModeDriver10.0 toolset already available"
-          } else {
-            Write-Host "WindowsKernelModeDriver10.0 toolset not found at $toolsetPath"
-            # List available toolsets
-            $platformsPath = Join-Path $vsMSBuildPath "v160\Platforms\x64\PlatformToolsets"
-            if (Test-Path $platformsPath) {
-              $toolsets = Get-ChildItem $platformsPath -Directory | Select-Object -ExpandProperty Name
-              Write-Host "Available toolsets: $($toolsets -join ', ')"
+          Write-Host "MSBuild: $msbuild"
+
+          $msbuildBin = Split-Path $msbuild -Parent
+          $msbuildCurrent = Split-Path $msbuildBin -Parent
+          $msbuildRoot = Split-Path $msbuildCurrent -Parent
+          $vsRoot = Split-Path $msbuildRoot -Parent  # often C:\Program or VS install root
+          Write-Host "MSBuildRoot: $msbuildRoot"
+          Write-Host "VSRoot (inferred): $vsRoot"
+
+          $vcV160 = Join-Path $msbuildRoot "Microsoft\\VC\\v160"
+          $platformsPath = Join-Path $vcV160 "Platforms\\x64\\PlatformToolsets"
+          $toolsetPath = Join-Path $platformsPath "WindowsKernelModeDriver10.0"
+          Write-Host "Checking toolset folder: $toolsetPath"
+
+          if (-not (Test-Path $toolsetPath)) {
+            Write-Host "WindowsKernelModeDriver10.0 toolset missing; attempting VSIX integration..."
+
+            # Locate VSIXInstaller
+            $vsixInstallerCandidates = @(
+              (Join-Path $vsRoot "Common7\\IDE\\VSIXInstaller.exe"),
+              "${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vsixinstaller.exe"
+            )
+            $vsixInstaller = $vsixInstallerCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+            if (-not $vsixInstaller) {
+              Write-Error "VSIXInstaller.exe not found; cannot install WDK VS integration"
+              exit 1
             }
+            Write-Host "VSIXInstaller: $vsixInstaller"
+
+            # Locate WDK VSIX packages
+            $wdkVsixRoot = "${env:ProgramFiles(x86)}\\Windows Kits\\10\\Vsix"
+            if (-not (Test-Path $wdkVsixRoot)) { $wdkVsixRoot = "${env:ProgramFiles(x86)}\\Windows Kits\\10" }
+            $vsixFiles = @()
+            if (Test-Path $wdkVsixRoot) {
+              $vsixFiles = Get-ChildItem $wdkVsixRoot -Recurse -Include *.vsix -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'wdk|wdf' }
+            }
+            if (-not $vsixFiles -or $vsixFiles.Count -eq 0) {
+              Write-Error "No WDK/WDF VSIX packages found under $wdkVsixRoot"
+              exit 1
+            }
+            Write-Host "Found VSIX packages:"
+            $vsixFiles | ForEach-Object { Write-Host "  - $($_.FullName)" }
+
+            foreach ($vsix in $vsixFiles) {
+              Write-Host "Installing VSIX: $($vsix.FullName)"
+              $proc = Start-Process -FilePath $vsixInstaller -ArgumentList @('/quiet', '/admin', '/logFile', (Join-Path $env:TEMP "vsix_$(Get-Date -Format yyyyMMddHHmmss).log"), $vsix.FullName) -PassThru -Wait
+              Write-Host "VSIX exit code: $($proc.ExitCode)"
+            }
+
+            # Re-check toolset after VSIX installation
+            if (Test-Path $toolsetPath) {
+              Write-Host "✅ WindowsKernelModeDriver10.0 toolset is now available"
+            } else {
+              Write-Warning "WindowsKernelModeDriver10.0 toolset still not found at $toolsetPath"
+              # List available toolsets for diagnostics
+              if (Test-Path $platformsPath) {
+                $toolsets = Get-ChildItem $platformsPath -Directory | Select-Object -ExpandProperty Name
+                Write-Host "Available toolsets: $($toolsets -join ', ')"
+              }
+            }
+          } else {
+            Write-Host "✅ WindowsKernelModeDriver10.0 toolset already available"
           }
-          
-          # Set environment variable to help MSBuild find WDK
-          Write-Host "Setting WDK environment variables..."
-          [Environment]::SetEnvironmentVariable("WindowsSDKDir", "${env:ProgramFiles(x86)}\Windows Kits\10\", "Machine")
-          [Environment]::SetEnvironmentVariable("WindowsSDKVersion", "10.0.19041.0\", "Machine")
+
+          # Set environment variables to help MSBuild locate SDK/WDK
+          Write-Host "Setting WDK/SDK environment variables..."
+          [Environment]::SetEnvironmentVariable("WindowsSDKDir", "${env:ProgramFiles(x86)}\Windows Kits\10\", "Process")
+          [Environment]::SetEnvironmentVariable("WindowsSDKVersion", "10.0.19041.0\\", "Process")
 
       - name: Integrate WDK with VS2019
         shell: pwsh
