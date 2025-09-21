@@ -51,6 +51,21 @@ jobs:
             }
           }
 
+          # Try Chocolatey as secondary fallback
+          $choco = Get-Command choco -ErrorAction SilentlyContinue
+          if ($choco) {
+            Write-Host "Installing VS2019 via Chocolatey..."
+            $params = '--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64 --add Microsoft.VisualStudio.Component.VC.v142.x86.x64.Spectre --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.VC.ATL.Spectre --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64 --add Microsoft.VisualStudio.Component.VC.MFC.x86.x64.Spectre --add Microsoft.VisualStudio.Component.Windows10SDK.19041 --quiet --wait --norestart'
+            $procC = Start-Process -FilePath 'choco' -ArgumentList @('install','visualstudio2019buildtools','-y','--no-progress','--package-parameters',$params) -Wait -PassThru
+            Write-Host "choco exit code: $($procC.ExitCode)"
+            if ($procC.ExitCode -eq 0) {
+              Write-Host "✅ VS2019 installed via Chocolatey"
+              exit 0
+            } else {
+              Write-Warning "Chocolatey installation returned $($procC.ExitCode). Falling back to bootstrapper."
+            }
+          }
+
           # Fallback to VS 2019 bootstrapper with Start-Process
           $bootstrapper = "${env:TEMP}\vs_buildtools.exe"
           Write-Host "Downloading VS2019 bootstrapper..."
@@ -74,6 +89,14 @@ jobs:
           Write-Host "VS2019 bootstrapper exit code: $($proc2.ExitCode)"
           if ($proc2.ExitCode -ne 0 -and $proc2.ExitCode -ne 3010) {
             Write-Error "VS2019 installation failed with exit code $($proc2.ExitCode)"
+            exit 1
+          }
+
+          # Verify installation
+          if (Test-Path $vs2019Path) {
+            Write-Host "✅ Confirmed VS2019 BuildTools installed at $vs2019Path"
+          } else {
+            Write-Error "VS2019 BuildTools not found after installation."
             exit 1
           }
 
@@ -139,10 +162,7 @@ jobs:
             Write-Warning "WDK installation completed with exit code $($process.ExitCode)"
           }
 
-      - name: Setup MSBuild (VS 2019)
-        uses: microsoft/setup-msbuild@v2
-        with:
-          vs-version: '16.0'
+      # setup-msbuild not required; we call VS2019 MSBuild.exe directly
 
       - name: Verify build environment
         shell: pwsh
@@ -154,6 +174,11 @@ jobs:
           if (-not (Test-Path $vsPath)) { $vsPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise" }
           Write-Host "Visual Studio 2019 Path: $vsPath"
           Write-Host "VS 2019 Exists: $(Test-Path $vsPath)"
+
+          if (-not (Test-Path $vsPath)) {
+            Write-Error "VS 2019 is required but not installed."
+            exit 1
+          }
           
           # Check for v142 toolset specifically
           $vctoolsPath = Join-Path $vsPath 'VC\Tools\MSVC'
@@ -183,15 +208,24 @@ jobs:
           Write-Host "WDK Exists: $(Test-Path $wdkPath)"
           
           # Check MSBuild
-          Write-Host "MSBuild version:"
-          msbuild -version
+          $vs2019MSBuild = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
+          if (-not (Test-Path $vs2019MSBuild)) { $vs2019MSBuild = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe" }
+          Write-Host "VS2019 MSBuild path: $vs2019MSBuild"
+          if (Test-Path $vs2019MSBuild) { & $vs2019MSBuild -version } else { Write-Error "VS2019 MSBuild not found"; exit 1 }
           
-          # Verify ATL and MFC
-          if (Test-Path $v142Path) {
-            $latestV142 = (Get-ChildItem $v142Path -Directory | Sort-Object Name -Descending)[0].Name
-            $atlPath = "$v142Path\$latestV142\atlmfc"
-            Write-Host "ATL/MFC path: $atlPath"
-            Write-Host "ATL/MFC Exists: $(Test-Path $atlPath)"
+          # Verify ATL and MFC (guarded)
+          if ($vctoolsPath -and (Test-Path $vctoolsPath)) {
+            $msvcDirs = Get-ChildItem $vctoolsPath -Directory | Sort-Object Name -Descending
+            if ($msvcDirs -and $msvcDirs.Count -gt 0) {
+              $latestMSVC = $msvcDirs[0].FullName
+              $atlPath = Join-Path $latestMSVC 'atlmfc'
+              Write-Host "ATL/MFC path: $atlPath"
+              Write-Host "ATL/MFC Exists: $(Test-Path $atlPath)"
+            } else {
+              Write-Host "No MSVC version folders found under $vctoolsPath"
+            }
+          } else {
+            Write-Host "Skipping ATL/MFC check: MSVC tools not found"
           }
 
       - name: Build DBK Kernel Driver
@@ -201,8 +235,17 @@ jobs:
           
           cd "DBKKernel"
           
+          # Resolve MSBuild from VS2019 explicitly
+          $msbuildExe = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
+          if (-not (Test-Path $msbuildExe)) { $msbuildExe = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe" }
+          if (-not (Test-Path $msbuildExe)) {
+            Write-Error "MSBuild.exe from VS2019 not found. Ensure VS2019 Build Tools installed."
+            exit 1
+          }
+          Write-Host "Using MSBuild at: $msbuildExe"
+
           # Build the driver with v142 toolset and specific SDK
-          msbuild DBKKernel.vcxproj `
+          & $msbuildExe DBKKernel.vcxproj `
             /p:Configuration="Release without sig" `
             /p:Platform="x64" `
             /p:PlatformToolset=WindowsKernelModeDriver10.0 `
