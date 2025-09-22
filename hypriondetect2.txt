@@ -1,0 +1,439 @@
+
+
+Below is an expanded and cleaned‑up write‑up that folds in your new snippets and ties them to the DBVM (Cheat Engine) hypercall model. I’ve kept the structure you asked for—complete documentation + control flow—and integrated the recurring patterns (PEB/TEB opaque predicates, non‑canonical “landmine” writes, FNV‑1a hashing, the syscall index table, the vmcall/vmmcall shim, and the nibble‑decoder blocks).
+Byfron/VM‑detector: Full Notes (with DBVM correlation)
+0) Executive summary
+
+The code you shared comprises a dispatcher + anti‑analysis prelude that:
+
+    Gates execution via byte‑pair checks pulled from obfuscated tables.
+
+    Evaluates opaque predicates over PEB/TEB fields using fixed 64‑bit constants (all in the 0xA228CC6A… / 0xE2CA6A0B… family) to force a stable branch on real systems while pushing tools/emulators into dead (booby‑trapped) paths.
+
+    Computes FNV‑1a over an 8‑byte descriptor and uses the masked hash to index an internal table (likely a module/function routing table).
+
+    Invokes a VM hypercall shim that dynamically chooses VMCALL vs VMMCALL and uses magic registers (ECX=0x90909090, EDX=0x76543210) to handshake—this tracks how DBVM exposes hypercalls.
+
+    Resolves Windows syscalls via an obfuscated “syscall number table” (data_7ff9338ae6f0) instead of IAT imports.
+
+    Sprinkles non‑canonical absolute stores like mov ds:0x9D95AFCC… , al—intentional #GP landmines in dead code to crash imperfect emulation/instrumentation.
+
+    Uses nibble‑decoded byte arrays (NOT + ROL4) to reconstruct 64‑bit values and time/thresholds; compares them against runtime values for more opaque gating.
+
+The result is a robust anti‑VM/anti‑emulation envelope around a small amount of real logic.
+1) Quick map: addresses → roles
+Address / Symbol	Role
+sub_7FF93427C920 (large prologue, saves xmm6–xmm15)	Main entry/dispatcher with FNV‑1a hashing, table mask/index, and the “OK/FAIL” latch (var_7a8). Falls through to epilogue restoring all zmm/xmm callee‑saves.
+sub_7FF93428DD70	Hypercall shim: chooses vmcall vs vmmcall, passes magic ECX/EDX, and writes the returned RAX through to a caller‑provided pointer. This is the clearest DBVM‑ish piece.
+sub_7FF93428D910 (.byfron block)	Anti‑analysis prelude that performs byte‑table XOR, many PEB/TEB opaque predicates, triggers landmine stores to non‑canonical addresses in dead paths, and conditionally calls sub_7FF9343718F0, sub_7FF93422B8A0, then the hypercall shim.
+7FF933F59F65 … 7FF933F5A0C7	Syscall index resolution from data_7ff9338ae6f0 (obfuscated selector) + direct syscall. Surrounding code builds UNICODE_STRING/OBJECT_ATTRIBUTES‑like structures.
+7FF933F5F3B7 …	String decode with zmm/xor PEB, wcslen, and a PEB->Ldr masked compare (& 0xE2CA6A0B4A680495 == 0xA228CC6A…). On mismatch: tailcall into a failure/report path.
+sub_7FF9341E5580	Nibble decoder: NOT + ROL4 to rebuild 8 bytes into a 64‑bit number, add 0x1388, compare to RCX threshold, then branch.
+sub_7FF9342E86B0	Another opaque‑predicate gate: _PEB::Ldr masked compare; then if the “oddness” flag is set it runs an alarm path: imul with 0x5712899D, landmine stores, or the “normal path” that later checks (_TEB.PEB & PEB->Ldr) == 0xA228CC6A5DDE6003.
+sub_7FF9343718F0, sub_7FF934371A80, sub_7FF9338BF630 (callee)	Helper/trampoline calls. By call sites and argument shapes, they look like timing/jitter/probe routines and a generic “report/transition” trampoline.
+2) The DBVM angle (where it shows)
+2.1 Hypercall shim: sub_7FF93428DD70
+
+Key points:
+
+    It computes two bytes (al and dl) from obfuscated global tables and tests al == dl. This is not a CPU vendor check; it’s a hidden switch deciding which instruction to issue:
+
+        Equal → path uses vmmcall
+
+        Not equal → path uses vmcall
+
+    On both sides it sets magic registers commonly used for hypervisor “hello”:
+
+        ECX = 0x90909090
+
+        EDX = 0x76543210
+
+    Call protocol (in both arms):
+
+    r8  := [rcx]        ; r8 points to a destination qword
+    rax := [rcx+8]      ; rax is the input payload / function selector
+    ecx := 0x90909090
+    edx := 0x76543210
+    vmcall/vmmcall
+    [r8] := rax         ; write the returned rax to the caller’s storage
+
+This mirrors the DBVM hypercall style seen in CE/DBVM integrations—DBVM exposes services via a single VMCALL/VMMCALL with magic cookie(s) in ECX/EDX, and uses RAX as the function selector / return register. The shim is deliberately obfuscated (table bytes, magic scribbles like 0xCF56F7E7, 0x6EEC9A24) to frustrate naïve pattern matching.
+
+    Inference: The caller prepares a 16‑byte context: [outptr, in_rax], calls sub_7FF93428DD70, and receives RAX from the hypervisor at *outptr. That’s a thin DBVM‑style wrapper disguised by opaque predicates.
+
+2.2 Where the shim is used
+
+    In .byfron:sub_7FF93428D910, after a cluster of opaque predicates and a structured exception block, execution builds two stack locals (var_20, var_2C—one looks like an IO block, the other like a payload struct), then calls:
+
+    call sub_7FF93428DD70
+    call sub_7FF93422B8A0  ; likely consumes the hypercall’s result
+
+    In 7FF933F5F3B7 …, the flow also funnels to a tailcall on mismatch.
+
+Bottom line: the hypercall shim is reachable only when the opaque predicates deem the environment “normal”; dead paths route to landmines.
+3) Opaque predicates & landmines
+
+This corpus is full of always‑true/always‑false tests on real hardware, made to confuse tools:
+
+    Example patterns:
+
+rax := gs:[0x60]            ; _TEB
+rax := [rax+0x18]           ; PEB->Ldr
+rcx := gs:[0x30]            ; TEB base
+rax &= [rcx+0x60]           ; (TEB->PEB?)
+cmp  rax, 0xA228CC6A4443C895
+je   <dead_landmine_path>
+
+Or:
+
+    rcx := 0xE2CA6A0B4A680495
+    rcx &= PEB->Ldr
+    cmp  rcx, 0xA228CC6ACA5F3733
+    je   <dead_landmine_path>
+
+    Dead paths (never taken on clean machines) contain:
+
+        mov ds:0x9D95AFCCB5AF6946, al (and variants)
+
+        mov ds:0x9D95AFCCB51D6943, al
+
+        mov ds:0x8B8C1A4FF5FC45C7, al
+
+        int3 clusters
+
+        bogus push rdi interleaves and redundant mov [rdx], edx
+
+    Those absolute stores to non‑canonical addresses will raise #GP if executed, crashing naive emulators/instrumenters or revealing breakage. They’re booby traps rather than logic.
+
+    The family of magic constants (0xA228CC6A…, 0xE2CA6A0B…, 0x9D95AFCC…) is used strictly as opaque‑predicate anchors and landmine immediate addresses. They are not real pointers.
+
+4) Hashing & table lookups (FNV‑1a fingerprint)
+
+In sub_7FF93427C920 you captured a textbook FNV‑1a‑64 over 8 bytes:
+
+    Offset basis 0xcbf29ce484222325
+
+    Prime 0x100000001b3
+
+    Mix each of the 8 bytes of rbx_1 (the 64‑bit source value) one by one:
+
+H := 0xcbf29ce484222325
+for b in [b0..b7] of rbx_1:
+    H = (H ^ b) * 0x100000001b3
+
+Mask with data_7ff933872cb8, index into table base data_7ff933872ca0, fetch an 8‑byte slot and compare against *(uint64_t*)data_7ff933872c90. If equal, a success latch is written:
+
+    [rbp+var_7a8].d = -0x30AA2819
+    eax = 1
+
+This looks like module/function fingerprinting: 8 bytes from a structure (at [arg1 + 0x10]) identify a route in a hash‑indexed table.
+5) Syscall indirection & structure setup (7FF933F59F65 …)
+
+This block constructs kernel structs and invokes a direct syscall with a syscall number gleaned from an obfuscated table:
+
+    It zeroes two 0x10‑byte blocks at [rbp+0x520] and [rbp+0x540], writes Length=0x30, MaxLen=0x40, and Buffer = &var_6f8. That fits a UNICODE_STRING followed by an OBJECT_ATTRIBUTES layout.
+
+    It pulls a volatile value through data_7ff933870ba8, then mixes high/low words with XOR/IMUL/ROL to derive an index into data_7ff9338ae6f0. That table yields the syscall number:
+
+    lea rcx, data_7ff9338ae6f0
+    mov eax, dword [rax+rcx]   ; EAX = syscall #
+    mov edx, 1
+    mov r8, rbx                ; R8 = &OBJECT_ATTRIBUTES (likely)
+    syscall
+    test eax, eax
+    js   error
+
+    This avoids static imports and breaks API‑hooking that relies on user‑mode stubs. It’s a direct kernel entry technique with a movable syscall mapping.
+
+6) String decoding, PEB‑XOR & length (7FF933F5F3B7 …)
+
+    It XORs a zmm register block containing a (wide) string with a PEB‑derived value and calls wcslen, then updates a 16‑bit length pair:
+
+    zmm0 ^= PEB
+    wlen := wcslen(decoded)
+    UNICODE_STRING.Length        = (uint16_t)(wlen * 2)
+    UNICODE_STRING.MaximumLength = (uint16_t)((wlen << 1) + 2)
+
+    Immediately after: another PEB->Ldr masked compare (& 0xE2CA6A0B4A680495 == 0xA228CC6A…). If it mismatches (i.e., the environment perturbs the expected PEB state), it tailcalls a side path (sub_7ff933f5f489), which ultimately leads to landmines and report.
+
+7) The nibble‑decoder blocks
+7.1 sub_7FF9341E5580
+
+    Reads an index from data_7ff933872bcc, then decodes 8 bytes from data_7ff933872bc9 + idx*8 + {5..C} using:
+
+b := ~table[i]
+b := ROL(b, 4)
+
+Packs them into a 64‑bit integer in byte order (shifts by 8, 16, …, 56), adds a + 0x1388 (5000) offset, and compares against RCX:
+
+    key64 := pack(dec[5..C])
+    key64 += 0x1388
+    if (key64 <= RCX) goto fast‑path
+    else set ProcessEnvironmentBlock_1 := 0x6EEDBA24 and jump slow/report path
+
+This is another opaque threshold that’s easy for a compiler to keep constant in a valid run, but emulators may get timing/inputs subtly wrong and diverge.
+7.2 sub_7FF9342E86B0
+
+    Similar PEB‑and‑Ldr masked compare gate:
+
+rax := gs:[0x60]          ; TEB
+rax := [rax+0x18]         ; PEB->Ldr
+rcx := 0xE2CA6A0B20F5277D
+rcx &= rax
+cmp rcx, 0xA228CC6A278DCC6D
+je  <dead path>
+
+Writes 0x811005C3 and tests parity (al & 1). If “odd,” it calls sub_7ff93435d380 and sub_7ff9338bf630, and re‑checks another PEB/TEB mask compare (== 0xA228CC6A5DDE6003). On failure, it writes diagnostic scribbles (0xCF54B7E7, 0x6EEC6A24, 0x811245C3) and calls sub_7ff934371A80(0x13, 3, 1, 0, 0)—consistent with an alert/telemetry trampoline.
+
+The taken branches again lead to landmines:
+
+    imul ebx, [rip+...], 0x5712899D
+    mov  byte [0x9D95AFCCB5AF6946], al
+
+8) Exception & probe scaffolding (from .byfron:sub_7FF93428D910)
+
+    There’s an __try {...} __except{...} region around:
+
+    call sub_7FF9343718F0        ; “prep” / time / SEH probe
+    var_20 = 0
+    var_18 = &var_20
+    var_10 = &var_2C
+    call sub_7FF93428DD70        ; hypercall shim (DBVM‑style)
+    call sub_7FF93422B8A0        ; consume result / finalize
+    ...
+    mov   eax, [rbp+var_20+3]
+    ...
+    if (PEB->ProcessHeap == 0xA228CC6A3842863B) goto <dead path>
+    ...
+    if (((BYTE3(var_20) << 24) == 0xCE000000)) {   ; high‑byte latch check
+        if (((TEB->PEB) & (PEB->Ldr)) == 0xA228CC6A5DDE6003) goto <dead path>
+        sub_7FF934371A80(19,3,2,0,0)               ; telemetry
+    }
+
+    The 0xCE000000 byte test is a one‑bit latch derived from the returned structure, acting as an additional opaque branch.
+
+9) Magic constants: codebook (observed)
+
+    Opaque predicate anchors (PEB/TEB masks & compares)
+    0xA228CC6A4443C895, 0xA228CC6A5DDE6003, 0xA228CC6A3842863B, 0xA228CC6A278DCC6D, 0xA228CC6ACA5F3733, paired with masks like 0xE2CA6A0B4A680495, 0xE2CA6A0B20F5277D.
+
+    Landmine absolute addresses (non‑canonical)
+    0x9D95AFCCB5AF6946, 0x9D95AFCCB51D6943, 0x8B8C1A4FF5FC45C7.
+
+    Scribble/marker values (written into locals between checks)
+    0xCF56F7E7, 0xCF5597E7, 0xCF54B7E7, 0xCF5577E7, 0x6EEC9A24, 0x6EEC6A24, 0x6EEFFA24, 0x6EEE2A24, 0x6EED7A24, 0x6EEDBA24, 0x30A8A818, 0x30AA6818, 0x30AAE818, 0x30AAC818, 0x30AB2818, 0x662C5FF5, 0x72AC0FF5, 0x3CBE1FF5, 0x5C51BFF5, 0x711185AA, 0x7113C5AA, 0x710EB5AA, 0x811005C3, 0x8110C5C3, 0x811245C3, 0x811385C3.
+
+    These constants are liveness cookies—they do not alter control flow except to complicate static analyses and to give telemetry a breadcrumb trail of where a path went.
+
+    FNV‑1a
+    Offset: 0xCBF29CE484222325, Prime: 0x100000001B3.
+
+    DBVM‑style magic registers
+    ECX := 0x90909090, EDX := 0x76543210.
+
+10) Control‑flow (CFG) outlines
+
+Below are plain‑text CFG sketches for the main blocks, highlighting decision points and side effects. (Arrows indicate possible flow; [landmine] denotes the non‑canonical write blocks.)
+10.1 sub_7FF93428D910 (byfron prelude)
+
+Entry
+  ├─ XOR two table bytes → b0^b1 → store
+  ├─ If b0 != b1 ───────────────────────────────► Path A
+  │                                               ├─ set 0x6EEE2A24
+  │                                               ├─ if <0 then ► [landmine]
+  │                                               └─ Epilogue/ret
+  │
+  └─ If b0 == b1:
+       ├─ if (TEB->PEB == 0xA228CC6A92972CC3) ─► [landmine]
+       ├─ set scratch constants, SEH prepare
+       ├─ call sub_7FF9343718F0
+       ├─ setup {var_20, var_2C}
+       ├─ call sub_7FF93428DD70   ; hypercall shim
+       ├─ call sub_7FF93422B8A0   ; consume result
+       ├─ eax := (BYTE3(var_20) << 24)
+       │   └─ if eax == 0xCE000000:
+       │        ├─ if ((TEB->PEB & PEB->Ldr) == 0xA228CC6A5DDE6003) ► [landmine]
+       │        └─ call sub_7FF934371A80(19,3,2,0,0)
+       └─ Epilogue/ret
+
+10.2 sub_7FF93428DD70 (hypercall shim)
+
+Entry(rcx = pointer to {outptr, in_rax})
+  ├─ al := tableA[idx], dl := tableB[idx]
+  ├─ if (al == dl)  ─► Path VMMCALL
+  │     r8 := [rcx] ; rax := [rcx+8]
+  │     ecx = 0x90909090 ; edx = 0x76543210
+  │     vmmcall
+  │     [r8] := rax
+  │     set cookie 0x6EEFFA24
+  │     ret
+  │
+  └─ else           ─► Path VMCALL
+        r8 := [rcx] ; rax := [rcx+8]
+        ecx = 0x90909090 ; edx = 0x76543210
+        vmcall
+        [r8] := rax
+        set cookie 0x710EB5AA
+        ret
+
+10.3 7FF933F59F65 … (syscall indirection)
+
+Entry
+  ├─ Build UNICODE_STRING {Len=0x30, Max=0x40, Buf=&var_6f8}
+  ├─ OBJECT_ATTRIBUTES at [rbp+0x540] zeroed
+  ├─ Load secret seed from data_7ff933870ba8 → mix with IMUL/XOR/ROL
+  ├─ idx := hash(seed) → read syscall# from data_7ff9338ae6f0[idx]
+  ├─ EDX := 1 ; R8 := &OBJECT_ATTRIBUTES ; RCX := <first param set earlier>
+  ├─ syscall
+  └─ if NTSTATUS < 0 → error path else continue
+
+10.4 7FF933F5F3B7 … (string/PEB XOR + Ldr mask gate)
+
+Entry
+  ├─ zmm0 := var_d58 ; zmm0 ^= PEB ; store back
+  ├─ wlen := wcslen(var_d58)
+  ├─ UNICODE_STRING.Length        = wlen*2
+  ├─ UNICODE_STRING.MaximumLength = wlen*2 + 2
+  ├─ if ((PEB->Ldr & 0xE2CA6A0B4A680495) != 0xA228CC6A…)
+  │     └─ return tailcall sub_7ff933f5f489  (→ failure/report)
+  └─ else continue (→ later code)
+
+10.5 sub_7FF9341E5580 (nibble decoder gate)
+
+Entry
+  ├─ idx := data_7ff9338ad1d8 check
+  ├─ decode 8 bytes with: b := ROL(~table[idx+i], 4), i=5..C
+  ├─ pack into u64, add 0x1388
+  ├─ if (u64 <= RCX) → OK path
+  └─ else set 0x6EEDBA24 → long jump to report/slow path
+
+10.6 sub_7FF9342E86B0 (PEB/Ldr mask + alarm)
+
+Entry
+  ├─ if ((PEB->Ldr & 0xE2CA6A0B20F5277D) == 0xA228CC6A278DCC6D) → [landmine]
+  ├─ cookie := 0x811005C3 ; if ((cookie & 1) == 0) → rare path (imul ebx,…, landmine)
+  ├─ i := 0 ; call sub_7ff93435d380 ; call sub_7ff9338bf630
+  ├─ if (i == 0):
+  │     if ((TEB->PEB & PEB->Ldr) == 0xA228CC6A5DDE6003) → [landmine]
+  │     set cookies 0xCF54B7E7 → 0x6EEC6A24 → 0x811245C3
+  │     call sub_7ff934371A80(19, 3, 1, 0, 0)
+  └─ Epilogue
+
+11) What each piece “means” defensively
+
+    FNV‑1a hash: data‑driven dispatch keyed by an 8‑byte identity; lets them use constant‑time checks without storing plain names.
+
+    PEB/TEB masked compares: all opaque predicates designed so that on genuine Windows, they evaluate predictably; in lifted IR/emulators with imprecise TLS/PEB plumbing, the result often differs—intentionally diverting into landmines.
+
+    Hypercall shim: minimal veneer for DBVM‑style hypercalls; the vmcall/vmmcall choice is obfuscated by table bytes (not cpuid) to make signature‑based blocking harder.
+
+    Syscall table: defeats user‑mode API hooks and dynamic import tracing; the index/selector is mixed each run/session.
+
+    Non‑canonical writes: booby traps, not logic. They’re only reachable if a predicate is “wrong,” i.e., under imprecise emulation or a flawed static rewrite.
+
+    Nibble decoder: hides 8‑byte constants in the data section; NOT+ROL4 removes easily‑searchable plaintext.
+
+12) Pseudocode (tight)
+
+    Note: variable names reflect what the code appears to do, not necessarily the original author’s intent.
+
+12.1 VM hypercall shim (sub_7FF93428DD70)
+
+// rcx -> {uint64_t *outptr; uint64_t in_rax;}
+uint64_t __fastcall hypercall_shim(void *ctx /*rcx*/) {
+    uint8_t a = tableA[idxA];       // obfuscated load
+    uint8_t d = tableB[idxB];       // obfuscated load
+    uint64_t *outp = *(uint64_t**)ctx;
+    uint64_t in    = *((uint64_t*)ctx + 1);
+
+    uint32_t ecx = 0x90909090;
+    uint32_t edx = 0x76543210;
+
+    if (a == d) {
+        // AMD SVM path
+        register uint64_t rax asm("rax") = in;
+        asm volatile ("vmmcall"
+                      : "+a"(rax)
+                      : "c"(ecx), "d"(edx)
+                      : "memory","cc");
+        *outp = rax;
+        return 0x6EEFFA24;
+    } else {
+        // Intel VMX path
+        register uint64_t rax asm("rax") = in;
+        asm volatile ("vmcall"
+                      : "+a"(rax)
+                      : "c"(ecx), "d"(edx)
+                      : "memory","cc");
+        *outp = rax;
+        return 0x710EB5AA;
+    }
+}
+
+12.2 Syscall indirection (core)
+
+NTSTATUS direct_syscall_obfuscated(
+    /*in*/  UNICODE_STRING *Name,
+    /*in*/  OBJECT_ATTRIBUTES *ObjAttr /* built in-place */,
+    /*out*/ IO_STATUS_BLOCK *Iosb,
+    /*...*/) 
+{
+    // Build UNICODE_STRING / OBJECT_ATTRIBUTES around &var_6f8
+    // ...
+
+    // Obfuscated index -> syscall table
+    uint32_t seed = *(uint32_t*)data_7ff933870ba8;
+    uint32_t idx  = mix(seed);                     // the XOR/IMUL/ROL net
+    uint32_t sysno = ((uint32_t*)data_7ff9338ae6f0)[idx];
+
+    // Direct kernel entry
+    NTSTATUS status;
+    register uint64_t r10 asm("r10") = (uint64_t)Name; // first arg per syscalling convention
+    asm volatile("mov %%rcx, %%r10; syscall"
+                 : "=a"(status)
+                 : "a"(sysno), "c"(Name), "d"(1), "D"(ObjAttr), "S"(Iosb) /* etc. */
+                 : "r11","memory","cc");
+
+    return status;  // checked with js (negative)
+}
+
+(The exact argument registers beyond RCX/RDX/R8 depend on which Nt API this is; the structure sizing strongly suggests an object open/query call.)*
+13) What in your new fragments mattered most
+
+    7FF933F5F3B7: the zmm^PEB decode + wcslen proves data is lazy‑decrypted just‑in‑time and string length is recomputed to fill a UNICODE_STRING. The adjacent Ldr mask compare joins the family of opaque predicates.
+
+    7FF933F59F65: confirms the syscall‑number table and layout of two small blocks that behave like UNICODE_STRING and OBJECT_ATTRIBUTES—this is where the obfuscated direct syscall is actually issued.
+
+    sub_7FF9341E5580: a full worked example of the nibble decoder (NOT+ROL4) and how the 64‑bit value is packed and compared to an input threshold (RCX) after adding +0x1388. It’s a time/limit or sliding window gate.
+
+    sub_7FF9342E86B0: a clean example of the mask‑and‑compare (PEB/Ldr) and the alert trampoline call sub_7FF934371A80(0x13, 3, 1, 0, 0) on failure, plus additional landmine writes for emulators that go astray.
+
+    VM shim (sub_7FF93428DD70): the DBVM‑style hypercall couched in obfuscation, with the right VMMCALL vs VMCALL split and ECX/EDX cookies.
+
+14) Defensive interpretation & testing tips (no bypassing guidance)
+
+    When single‑stepping in a user‑mode emulator, expect false‑taken landmine paths if PEB/TEB shadowing isn’t perfect (TLS, gs:[30h|60h], or PEB/PEB->Ldr mirrors). A real process context avoids tripping the 0x9D95AFCC… stores.
+
+    The hypercall shim is sensitive to the chosen instruction. If you’re instrumenting, ensure your CPU vendor model is consistent—DBVM will respond to VMCALL on Intel and VMMCALL on AMD; mixing them causes #UD.
+
+    The syscall table requires that your tool not assume mov r10, rcx stubs; direct syscall stubs must honor Windows calling convention (RCX copied to R10 before the instruction). Incomplete emulation here will flip predicates and hit landmines.
+
+    The nibble decoder and zmm^PEB patterns mean data/signatures won’t be visible statically; dump them after the corresponding setup runs.
+
+15) Open questions (nice‑to‑have confirmations)
+
+    sub_7FF9343718F0 / sub_7FF934371A80: by call sites and args, these look like timing/telemetry or sleep/jitter helpers. If you later pull small slices, we can label them more precisely.
+
+    The exact Nt syscall* in 7FF933F59F65… block: structure sizing suggests NtOpenFile/NtOpenSection/NtQuery*. If you capture the OBJECT_ATTRIBUTES->ObjectName at runtime, we can identify the target precisely.
+
+16) Appendix: recurring byte‑mixer (for the syscall table index)
+
+You’ll see many variants of:
+
+mix := hiword(seed) ^ const
+mix  = (mix * lowword(seed)) ^ mix
+mix  = ROL(mix, k) ^ ROL(mix ^ lowword, k2) * thirdword
+...
+idx  = affine(mix, lastword) ^ mix ^ constant
+
+This is a nonlinear bijection over 32‑bit lanes to produce a “random‑looking” index into data_7ff9338ae6f0. It’s not crypto—just anti‑pattern‑matching.

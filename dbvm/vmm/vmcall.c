@@ -2417,14 +2417,26 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   // For all other commands enforce strict password check in registers.
   if (vmregisters->rax)
   {
-    ULONG *peek=(ULONG *)getRealPointer(vmregisters->rax);
-    if (peek)
+    int premap_error=0;
+    UINT64 premap_pf=0;
+    ULONG *peek=(ULONG *)mapVMmemory(currentcpuinfo, vmregisters->rax, 12, &premap_error, &premap_pf);
+    if ((premap_error==0) && (peek))
     {
       if (peek[2]!=VMCALL_GETVERSION)
       {
         if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
+        {
+          unmapVMmemory(peek, 12);
           return raiseInvalidOpcodeException(currentcpuinfo);
+        }
       }
+      unmapVMmemory(peek, 12);
+    }
+    else
+    {
+      // If we can't peek, require passwords for safety
+      if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
+        return raiseInvalidOpcodeException(currentcpuinfo);
     }
   }
 
