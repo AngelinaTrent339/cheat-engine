@@ -1095,13 +1095,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       sendstring("VMCALL_REDIRECTINT1\n\r");
       
-      // Anti-detection: Check for legitimate CE structure size (28 bytes)
-      // Hyperion probes typically use minimal structures, CE uses exact size
-      if (vmcall_instruction_size != 28) {
-        // Not the exact CE structure size - likely a probe
-        unmapVMmemory(vmcall_instruction, vmcall_instruction_size);
-        return raiseInvalidOpcodeException(currentcpuinfo);
-      }
+      // Rely on password enforcement only
       
       if (vmcall_instruction[3] == 0)
       {
@@ -1296,13 +1290,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
       sendstring("VMCALL_REDIRECTINT14\n\r");
       
-      // Anti-detection: Check for legitimate CE structure size (28 bytes)
-      // Hyperion probes typically use minimal structures, CE uses exact size
-      if (vmcall_instruction_size != 28) {
-        // Not the exact CE structure size - likely a probe
-        unmapVMmemory(vmcall_instruction, vmcall_instruction_size);
-        return raiseInvalidOpcodeException(currentcpuinfo);
-      }
+      // Rely on password enforcement only
       
       if (vmcall_instruction[3] == 0)
       {
