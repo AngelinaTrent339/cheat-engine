@@ -1091,6 +1091,15 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     case VMCALL_REDIRECTINT1: //redirect int1
     {
       sendstring("VMCALL_REDIRECTINT1\n\r");
+      
+      // Anti-detection: Check for legitimate CE structure size (28 bytes)
+      // Hyperion probes typically use minimal structures, CE uses exact size
+      if (vmcall_instruction_size != 28) {
+        // Not the exact CE structure size - likely a probe
+        unmapVMmemory(vmcall_instruction, vmcall_instruction_size);
+        return raiseInvalidOpcodeException(currentcpuinfo);
+      }
+      
       if (vmcall_instruction[3] == 0)
       {
         int1redirection=vmcall_instruction[4];
@@ -1283,6 +1292,15 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
 
       sendstring("VMCALL_REDIRECTINT14\n\r");
+      
+      // Anti-detection: Check for legitimate CE structure size (28 bytes)
+      // Hyperion probes typically use minimal structures, CE uses exact size
+      if (vmcall_instruction_size != 28) {
+        // Not the exact CE structure size - likely a probe
+        unmapVMmemory(vmcall_instruction, vmcall_instruction_size);
+        return raiseInvalidOpcodeException(currentcpuinfo);
+      }
+      
       if (vmcall_instruction[3] == 0)
       {
         int14redirection=vmcall_instruction[4];
@@ -1324,6 +1342,15 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     case VMCALL_REDIRECTINT3: //redirect int3
     {
       sendstring("VMCALL_REDIRECTINT3\n\r");
+      
+      // Anti-detection: Check for legitimate CE structure size (28 bytes)
+      // Hyperion probes typically use minimal structures, CE uses exact size
+      if (vmcall_instruction_size != 28) {
+        // Not the exact CE structure size - likely a probe
+        unmapVMmemory(vmcall_instruction, vmcall_instruction_size);
+        return raiseInvalidOpcodeException(currentcpuinfo);
+      }
+      
       if (vmcall_instruction[3] == 0)
       {
         int3redirection=vmcall_instruction[4];
