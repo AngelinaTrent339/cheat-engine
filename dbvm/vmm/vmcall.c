@@ -2382,6 +2382,26 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     vmregisters->rax=currentcpuinfo->vmcb->RAX; //fill it in, it may get used here
 
 
+  // CRITICAL: Validate Password1 and Password3 in registers - blocks Hyperion probes
+  QWORD regP1, regP3;
+  if (isAMD)
+  {
+    regP1 = vmregisters->rdx;
+    regP3 = vmregisters->rcx;
+  }
+  else
+  {
+    regP1 = vmregisters->rdx;
+    regP3 = vmregisters->rcx;
+  }
+
+  // Check passwords in registers first - if wrong, behave like bare metal
+  if ((regP1 != Password1) || (regP3 != Password3))
+  {
+    // Wrong passwords in registers: Hyperion probe detected, raise #UD
+    return raiseInvalidOpcodeException(currentcpuinfo);
+  }
+
   // Check for probe attempts: if someone calls VMCALL without proper structure, 
   // behave like bare metal (raise #UD)
   if (vmregisters->rax == 0)

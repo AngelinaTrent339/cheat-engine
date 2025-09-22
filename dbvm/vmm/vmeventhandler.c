@@ -1410,7 +1410,7 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
   IOExit_Qualification iodata;
   iodata.Exit_Qualification=vmread(vm_exit_qualification);
   //check Line Control Register to see if DLAB is on
-  char dlab=fakecom1.Line_Control_Register >> 7;
+  char dlab=com1state.Line_Control_Register >> 7;
 
   ULONG value8=vmregisters->rax & 0xff;
   //ULONG value16=vmregisters->rax & 0xffff;
@@ -1460,7 +1460,7 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
         if (dlab)
         {
           //write to Devisor_Latch_Low
-          fakecom1.Devisor_Latch_Low=value8;
+          com1state.Devisor_Latch_Low=value8;
         }
         else
         {
@@ -1478,7 +1478,7 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
         if (dlab)
         {
           //read from Devisor_Latch_Low
-          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Devisor_Latch_Low;
+          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Devisor_Latch_Low;
         }
         else
         {
@@ -1502,22 +1502,22 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
       {
         if (dlab)
         {
-          fakecom1.Devisor_Latch_High=value8;
+          com1state.Devisor_Latch_High=value8;
         }
         else
         {
-          fakecom1.Interrupt_Enable_Register=value8;
+          com1state.Interrupt_Enable_Register=value8;
         }
       }
       else //read
       {
         if (dlab)
         {
-          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Devisor_Latch_High;
+          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Devisor_Latch_High;
         }
         else
         {
-          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Interrupt_Enable_Register;
+          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Interrupt_Enable_Register;
         }
       }
       return 0;
@@ -1530,11 +1530,11 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
 
       if (iodata.direction==0) //write
       {
-        fakecom1.FIFO_Control_Register=value8;
+        com1state.FIFO_Control_Register=value8;
       }
       else //read
       {
-        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Interrupt_Identification_Register;
+        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Interrupt_Identification_Register;
       }
 
       return 0;
@@ -1546,11 +1546,11 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
 
       if (iodata.direction==0) //write
       {
-        fakecom1.Line_Control_Register=value8;
+        com1state.Line_Control_Register=value8;
       }
       else //read
       {
-        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Line_Control_Register;
+        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Line_Control_Register;
       }
 
       return 0;
@@ -1562,11 +1562,11 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
 
       if (iodata.direction==0) //write
       {
-        fakecom1.Modem_Control_Register=value8;
+        com1state.Modem_Control_Register=value8;
       }
       else //read
       {
-        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Modem_Control_Register;
+        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Modem_Control_Register;
       }
 
       return 0;
@@ -1599,11 +1599,11 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
     {
       if (iodata.direction==0) //write
       {
-        fakecom1.Scratch_Register=value8;
+        com1state.Scratch_Register=value8;
       }
       else //read
       {
-        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Scratch_Register;
+        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Scratch_Register;
       }
 
       return 0;
@@ -2555,7 +2555,7 @@ int setVM_CR0(pcpuinfo currentcpuinfo, UINT64 newcr0)
   vmwrite(vm_guest_cr0,newcr0);  //set new cr0 (real one)
 
 
-  sendstringf("fake cr0 has been set to %8\n\r",vmread(0x6004));
+  sendstringf("guest cr0 has been set to %8\n\r",vmread(0x6004));
   sendstringf("real cr0 has been set to %8 (%8)\n\r",newcr0,vmread(vm_guest_cr0));
 
   if  ((vmread(0x6004) & 0x80000001)==0x80000001)
@@ -2794,11 +2794,11 @@ int setVM_CR4(pcpuinfo currentcpuinfo, UINT64 newcr4)
 
 
 
- // sendstringf("Set fake CR4 to %x  (old fake was %x)\n\r",newCR4, oldCR4);
+ // sendstringf("Set guest CR4 to %x  (old guest was %x)\n\r",newCR4, oldCR4);
   if (hasUnrestrictedSupport)
     vmwrite(vm_cr4_read_shadow,newCR4 & vmread(vm_cr4_guest_host_mask) ); //set the host bits accordingly
   else
-    vmwrite(vm_cr4_read_shadow,newCR4); //set the fake CR4
+    vmwrite(vm_cr4_read_shadow,newCR4); //set the guest CR4
 
   newCR4=IA32_VMX_CR4_FIXED0 | newCR4; //add the forced bits to it
 

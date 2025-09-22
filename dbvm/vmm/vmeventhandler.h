@@ -31,8 +31,8 @@ typedef struct
   unsigned char Modem_Status_Register; //baseport+6 read
 
   unsigned char Scratch_Register; //baseport+7 read/write
-} FakeCOMport, *PFakeCOMport;
-FakeCOMport fakecom1;
+} COMData, *PCOMData;
+COMData com1state;
 
 
 int DidHLT;
