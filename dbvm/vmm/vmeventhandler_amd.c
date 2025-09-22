@@ -998,6 +998,7 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
           case VM_HSAVE_PA_MSR:
             //nosendchar[getAPICID()]=0;
             sendstringf("wrmsr(VM_HSAVE_PA,%6)\n", newvalue);
+            // Store in guest tracking but always return 0 on reads
             currentcpuinfo->guest_VM_HSAVE_PA=newvalue;
 
             if (newvalue==0)
@@ -1009,6 +1010,11 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
 
 
             nosendchar[getAPICID()]=1;
+            break;
+
+          case 0xc0010114: // VM_CR MSR write - ignore but don't fault
+            // Silently ignore VM_CR writes to prevent startup detection
+            sendstringf("wrmsr(VM_CR,%6) - ignored for anti-detection\n", newvalue);
             break;
 
           default:
@@ -1057,12 +1063,18 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
 
 
           case 0xc0000080://efer
-            // Always hide SVME from guest reads (clear bit 12)
+            // ALWAYS hide SVME bit from guest - CRITICAL for startup detection
             value=currentcpuinfo->vmcb->EFER & ~(1ULL<<12);
             break;
 
           case VM_HSAVE_PA_MSR:
-            value=currentcpuinfo->guest_VM_HSAVE_PA;
+            // ALWAYS return 0 for VM_HSAVE_PA - CRITICAL for startup detection
+            value=0;
+            break;
+
+          case 0xc0010114: // VM_CR MSR - CRITICAL for startup detection
+            // Return a clean VM_CR value with no SVM lock bits set
+            value=0;
             break;
 
           default:
@@ -1391,20 +1403,18 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
         c = c & (~(1ULL << 5));
       }
 
-      // Hide AMD SVM features (0x8000000A) - critical for AMD detection
+      // CRITICAL: Hide AMD SVM features completely (0x8000000A)
       if (oldeax == 0x8000000AULL)
       {
-        // Zero all SVM feature bits to hide virtualization completely
+        // Zero all SVM feature information - prevents SVM detection at startup
         a = 0; b = 0; c = 0; d = 0;
       }
 
-      // Hide extended AMD features that could reveal virtualization
+      // CRITICAL: Hide SVM capability in extended features (0x80000001)
       if (oldeax == 0x80000001ULL)
       {
-        // Clear SVM bit (bit 2 in ECX) and other virtualization hints
-        c = c & (~(1ULL << 2));   // Clear SVM
-        d = d & (~(1ULL << 19));  // Clear MP (if present)
-        d = d & (~(1ULL << 13));  // Clear other potential flags
+        // Clear SVM bit (bit 2 in ECX) - prevents SVM detection at startup
+        c = c & (~(1ULL << 2));
       }
 
       // Hide hypervisor leaves entirely
@@ -1423,6 +1433,12 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
       {
         sendstringf("SelfTest: CPUID 0x4000001E => EAX=%8 EBX=%8 ECX=%8 EDX=%8\n", (DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
         selftest_printed_hvleaf=1;
+      }
+      static volatile int selftest_printed_svm=0;
+      if (!selftest_printed_svm && oldeax==0x8000000AULL)
+      {
+        sendstringf("SelfTest: CPUID 0x8000000A (SVM) => EAX=%8 EBX=%8 ECX=%8 EDX=%8 (should be zeros)\n", (DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
+        selftest_printed_svm=1;
       }
       if (!selftest_printed_hvsample && (oldeax>=0x40000000ULL && oldeax<=0x400000FFULL))
       {

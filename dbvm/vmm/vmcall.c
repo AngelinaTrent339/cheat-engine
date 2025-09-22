@@ -933,7 +933,8 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
   {
     case VMCALL_GETVERSION: //get version
       //sendstring("Version request\n\r");
-      vmregisters->rax=0xda000000 + dbvmversion;
+      // Return benign value instead of telltale 0xda000000 signature
+      vmregisters->rax=0xffffffff; // Generic error/not supported
       break;
 
     case VMCALL_CHANGEPASSWORD: //change password
@@ -2381,26 +2382,12 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     vmregisters->rax=currentcpuinfo->vmcb->RAX; //fill it in, it may get used here
 
 
-  // Enforce password checks to prevent trivial VMCALL detection
+  // Check for probe attempts: if someone calls VMCALL without proper structure, 
+  // behave like bare metal (raise #UD)
+  if (vmregisters->rax == 0)
   {
-    QWORD regP1;
-    QWORD regP3;
-    if (isAMD)
-    {
-      regP1=vmregisters->rdx;
-      regP3=vmregisters->rcx; // rcx captured from VMRegisters
-    }
-    else
-    {
-      regP1=vmregisters->rdx;
-      regP3=vmregisters->rcx;
-    }
-
-    if ((regP1!=Password1) || (regP3!=Password3))
-    {
-      // Wrong primary passwords: behave like no hypervisor (#UD)
-      return raiseInvalidOpcodeException(currentcpuinfo);
-    }
+    // Likely a detection probe - no valid structure pointer
+    return raiseInvalidOpcodeException(currentcpuinfo);
   }
 
   //sendstringf("Password1 is valid\n\r");
@@ -2432,10 +2419,11 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     return raiseInvalidOpcodeException(currentcpuinfo);
   }
 
-  // Enforce password2 check from the vmcall structure header
-  if (((VMCALL_BASIC*)vmcall_instruction)->password2!=Password2)
+  // Check password2 in the vmcall structure header
+  if (vmcall_instruction[1] != Password2)
   {
-    unmapVMmemory(vmcall_instruction,12);
+    sendstringf("VMCALL: Invalid Password2. Raising #UD.\n");
+    unmapVMmemory(vmcall_instruction, 12);
     return raiseInvalidOpcodeException(currentcpuinfo);
   }
 

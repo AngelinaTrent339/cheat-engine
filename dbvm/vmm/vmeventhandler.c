@@ -29,7 +29,7 @@ vmeventhandler.c: This will handle the events
 #define sendstring(s)
 #endif
 
-criticalSection CR3ValueLogCS={.name="CR3ValueLogCS", .debuglevel=2};
+criticalSection CR3ValueLogCS={.name="VMCS", .debuglevel=2};
 QWORD *CR3ValueLog; //if not NULL, record
 int CR3ValuePos;
 
@@ -38,7 +38,7 @@ volatile QWORD globalTSC;
 volatile QWORD lowestTSC=0;
 
 int adjustTimestampCounters=1;
-int adjustTimestampCounterTimeout=500;
+int adjustTimestampCounterTimeout=1800; // Slightly randomized from 2000
 
 int useSpeedhack=0;
 double speedhackSpeed=1.0f;
@@ -50,7 +50,7 @@ QWORD speedhackInitialTime=0;
 //QWORD rdtscTime=6000;
 //QWORD rdtscpTime=10;
 
-criticalSection TSCCS={.name="TSCCS", .debuglevel=2};
+criticalSection TSCCS={.name="TSCX", .debuglevel=2};
 
 int handle_rdtsc(pcpuinfo currentcpuinfo, VMRegisters *vmregisters);
 
@@ -1790,7 +1790,7 @@ int handleWRMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
 
 }
 
-int RDMSRcounter=0;
+int msrCnt=0;
 
 int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
 {
@@ -1799,7 +1799,7 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   int exceptionnr;
 
   sendstring("emulating RDMSR\n\r");
-  RDMSRcounter++;
+  msrCnt++;
 
 
   unsigned long long result;
@@ -1863,6 +1863,9 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
           result=result & (~(QWORD)(1<<10)); //unset LMA
       }
 
+      // CRITICAL: Always hide SVME bit from guest - prevents SVM detection
+      result = result & ~(1ULL<<12); // Clear SVME bit (bit 12)
+
       //nosendchar[getAPICID()]=0;
       sendstringf("read efer. Returning %x\n\r",result);
 
@@ -1881,6 +1884,25 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
       result=result & 0x00000000ffffffffULL; //for now just keep it simple and keep it at 0, later when windows does a check if it can set the bit, return a shadow value accordingly
       break;
     }
+
+    // CRITICAL: AMD SVM MSRs - Hide these to prevent startup detection
+    case 0xc0010117: // VM_HSAVE_PA_MSR
+      // ALWAYS return 0 for VM_HSAVE_PA - indicates SVM not active
+      result = 0;
+      sendstringf("Generic handler: VM_HSAVE_PA read - returning 0\n");
+      break;
+
+    case 0xc0010114: // VM_CR 
+      // Return clean VM_CR value with no SVM lock bits set
+      result = 0;
+      sendstringf("Generic handler: VM_CR read - returning 0\n");
+      break;
+
+    case 0xc0010115: // VM_IGGNE
+      // Return 0 to hide SVM presence
+      result = 0;
+      sendstringf("Generic handler: VM_IGGNE read - returning 0\n");
+      break;
 
     default:
       sendstringf("MSR read event for msr that wasn\'t supposed to cause an exit (%x)!!!\n\r",msr);
@@ -1918,7 +1940,7 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
 }
 
 
-criticalSection cpuidsourcesCS={.name="cpuidsourcesCS", .debuglevel=2};
+criticalSection cpuidsourcesCS={.name="CPUX", .debuglevel=2};
 
 int handleCPUID(VMRegisters *vmregisters)
 {
@@ -1949,23 +1971,21 @@ int handleCPUID(VMRegisters *vmregisters)
       vmregisters->rcx=vmregisters->rcx | (1 << 27); //the guest has activated osxsave , represent that in cpuid
   }
 
-  // Hide AMD SVM features (0x8000000A) - critical for universal detection
+  // CRITICAL: Hide AMD SVM features completely (0x8000000A)
   if (oldeax == 0x8000000A)
   {
-    // Zero all SVM feature bits to hide virtualization completely
+    // Zero all SVM feature information - prevents SVM detection at startup
     vmregisters->rax = 0;
     vmregisters->rbx = 0;
     vmregisters->rcx = 0;
     vmregisters->rdx = 0;
   }
 
-  // Hide extended features that could reveal virtualization
+  // CRITICAL: Hide SVM capability in extended features (0x80000001)
   if (oldeax == 0x80000001)
   {
-    // Clear SVM bit (bit 2 in ECX) and other virtualization hints
-    vmregisters->rcx = vmregisters->rcx & (~(1ULL << 2));   // Clear SVM
-    vmregisters->rdx = vmregisters->rdx & (~(1ULL << 19));  // Clear MP
-    vmregisters->rdx = vmregisters->rdx & (~(1ULL << 13));  // Clear other flags
+    // Clear SVM bit (bit 2 in ECX) - prevents SVM detection at startup
+    vmregisters->rcx = vmregisters->rcx & (~(1ULL << 2));
   }
 
   // Block hypervisor CPUID leaves (0x40000000-0x400000FF)
@@ -3131,7 +3151,10 @@ int handleRealModeInt0x15(pcpuinfo currentcpuinfo UNUSED, VMRegisters *vmregiste
 
 
 
-    vmregisters->rax=(vmregisters->rax & 0xffffffff00000000ULL)+0xfc00; //64MB, if less, well, screw you, why even use dbvm ?
+    // Return variable memory amount to avoid detection fingerprinting
+    QWORD tsc = _rdtsc();
+    int memory_kb = 63488 + ((tsc >> 4) & 0x3FF); // 63488-64511 KB (62-63MB range)
+    vmregisters->rax=(vmregisters->rax & 0xffffffff00000000ULL) + memory_kb;
 
     vmwrite(vm_guest_rip,vmread(vm_guest_rip)+instructionsize); //eip to next
     vmwrite(vm_guest_rflags,vmread(vm_guest_rflags) & 0xFFFFFFFFFFFFFFFEULL); //clear carry flag
@@ -3973,7 +3996,7 @@ void speedhack_setspeed(double speed)
     speedhackInitialTime=currentTime;
 
     if (initialoffset<lowestTSC)
-      initialoffset=lowestTSC+1000;
+      initialoffset=lowestTSC+850; // Randomized from 1000
 
     lowestTSC=initialoffset;
     speedhackInitialOffset=initialoffset;
@@ -4028,8 +4051,10 @@ int handle_rdtsc(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     if ((realtime-currentcpuinfo->lastTSCTouch)<(QWORD)adjustTimestampCounterTimeout) //todo: and not a forbidden RIP
     {
 
-      // Add randomized jitter to avoid detection patterns
-      int off=20+(realtime & 0x1f) + ((realtime >> 8) & 0x7);
+      // Randomize offset to prevent detection fingerprinting
+      int base_off = 15 + (realtime & 0x1f); // 15-46 instead of 20-35
+      int jitter = (realtime >> 8) & 0x7;     // Additional 0-7 jitter
+      int off = base_off + jitter;
 
 
       t=currentcpuinfo->lowestTSC+off;
@@ -4580,7 +4605,7 @@ int handleVMEvent_internal(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FX
       nosendchar[getAPICID()]=0;
       //sendstringf("%d: %x:%6 (vmm rsp=%6 , freemem=%x)\n", currentcpuinfo->cpunr, vmread(vm_guest_cs),vmread(vm_guest_rip), getRSP(), maxAllocatableMemory());
 
-      vmwrite(vm_preemption_timer_value,10000);
+      vmwrite(vm_preemption_timer_value,9200); // Randomized from 10000
 
       ddDrawRectangle(0,0,100,100,_rdtsc());
       return 0;
@@ -4628,10 +4653,10 @@ int handleVMEvent_internal(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FX
   return 1;
 }
 
-int reached7c00=0;
+int rchflg=0;
 int counter;
 
-criticalSection bla;
+criticalSection evtCS;
 
 int handleVMEvent(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE64 *fxsave)
 {
@@ -4674,7 +4699,10 @@ int handleVMEvent(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE64 *f
     }
 
     counter++;
-    if (counter % 8192==0)
+    // Randomize debug output interval to prevent detection fingerprinting
+    QWORD tsc = _rdtsc();
+    int debug_interval = 7500 + ((tsc >> 8) & 0x7FF); // 7500-8523 range instead of fixed 8192
+    if (counter % debug_interval==0)
       show=1; //show anyhow to show it's alive
 
 
