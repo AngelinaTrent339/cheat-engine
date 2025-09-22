@@ -933,8 +933,11 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
   {
     case VMCALL_GETVERSION: //get version
       //sendstring("Version request\n\r");
-      // Legitimate CE calls with passwords get real version, probes get fake
-      vmregisters->rax=0xda000000 + dbvmversion;
+      // Return real version only when proper passwords are provided. Probes get 0.
+      if ((vmregisters->rdx==Password1) && (vmregisters->rcx==Password3) && (vmcall_instruction[1]==Password2))
+        vmregisters->rax=0xda000000 + dbvmversion;
+      else
+        vmregisters->rax=0;
       break;
 
     case VMCALL_CHANGEPASSWORD: //change password
@@ -2409,24 +2412,20 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     vmregisters->rax=currentcpuinfo->vmcb->RAX; //fill it in, it may get used here
 
 
-  // CRITICAL: Validate Password1 and Password3 in registers - blocks Hyperion probes
-  QWORD regP1, regP3;
-  if (isAMD)
+  // Allow GETVERSION to be queried without raising #UD so CE can detect DBVM,
+  // but with a fake/zero result unless correct passwords are provided (handled per-case).
+  // For all other commands enforce strict password check in registers.
+  if (vmregisters->rax)
   {
-    regP1 = vmregisters->rdx;
-    regP3 = vmregisters->rcx;
-  }
-  else
-  {
-    regP1 = vmregisters->rdx;
-    regP3 = vmregisters->rcx;
-  }
-
-  // Check passwords in registers first - if wrong, behave like bare metal
-  if ((regP1 != Password1) || (regP3 != Password3))
-  {
-    // Wrong passwords in registers: Hyperion probe detected, raise #UD
-    return raiseInvalidOpcodeException(currentcpuinfo);
+    ULONG *peek=(ULONG *)getRealPointer(vmregisters->rax);
+    if (peek)
+    {
+      if (peek[2]!=VMCALL_GETVERSION)
+      {
+        if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
+          return raiseInvalidOpcodeException(currentcpuinfo);
+      }
+    }
   }
 
   // Check for probe attempts: if someone calls VMCALL without proper structure, 
