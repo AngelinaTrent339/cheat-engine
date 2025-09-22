@@ -933,8 +933,8 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
   {
     case VMCALL_GETVERSION: //get version
       //sendstring("Version request\n\r");
-      // Return benign value instead of telltale 0xda000000 signature
-      vmregisters->rax=0xffffffff; // Generic error/not supported
+      // Legitimate CE calls with passwords get real version, probes get fake
+      vmregisters->rax=0xda000000 + dbvmversion;
       break;
 
     case VMCALL_CHANGEPASSWORD: //change password
