@@ -1,4 +1,4 @@
- unit DBK32functions;
+﻿ unit DBK32functions;
 
 {$MODE Delphi}
 
@@ -2842,10 +2842,19 @@ begin
     generateDynamicPasswords(dynamic_password1, dynamic_password2, dynamic_password3);
     OutputDebugString(format('Generated pre-load passwords: %.16x,%.8x,%.16x', [dynamic_password1, dynamic_password2, dynamic_password3]));
     
+    // Validate passwords are not static defaults
+    if (dynamic_password1 = $A7B9C2E4F6D8A1B3) or (dynamic_password3 = $9F3E7A5B2C4D8E1A) or (dynamic_password2 = $5E8A1C7F) then
+    begin
+      OutputDebugString('ERROR: Generated static passwords instead of dynamic ones!');
+      result := False;
+      exit;
+    end;
+    
     // Set the dynamic passwords so DBVM and CE use the same values
     vmx_password1 := dynamic_password1;
     vmx_password2 := dynamic_password2;
     vmx_password3 := dynamic_password3;
+    OutputDebugString(format('Set CE passwords to: %.16x,%.8x,%.16x', [vmx_password1, vmx_password2, vmx_password3]));
 
     if parameters<>nil then
     begin
@@ -2871,6 +2880,7 @@ begin
     input.password2 := dynamic_password2;
     input.password3 := dynamic_password3;
     OutputDebugString(format('Passing passwords to kernel: %.16x,%.8x,%.16x', [input.password1, input.password2, input.password3]));
+    OutputDebugString(format('Input struct size: %d bytes', [sizeof(Input)]));
 
     if not isAMD then
     begin
@@ -2894,10 +2904,37 @@ begin
 
     OutputDebugString('Calling deviceiocontrol');
     result:=deviceiocontrol(hdevice,cc,@input,sizeof(Input),nil,0,cc,nil);
+    
+    if result then
+      OutputDebugString('IOCTL_CE_LAUNCHDBVM succeeded')
+    else
+    begin
+      OutputDebugString(format('IOCTL_CE_LAUNCHDBVM failed with error: %d', [GetLastError]));
+      exit;
+    end;
 
-    // No need to call configure_vmx here since passwords are already set correctly
-    // DBVM now starts with the dynamic passwords from the beginning
-    OutputDebugString('DBVM loading complete with pre-configured dynamic passwords');
+    // Test if DBVM is working with the dynamic passwords
+    try
+      OutputDebugString('Testing DBVM communication with dynamic passwords...');
+      if dbvm_getversion <> 0 then
+      begin
+        OutputDebugString(format('DBVM version check successful: %x', [dbvm_getversion]));
+        OutputDebugString('Dynamic password patching worked correctly!');
+      end
+      else
+      begin
+        OutputDebugString('DBVM version check failed - password mismatch or DBVM not loaded');
+        result := False;
+        exit;
+      end;
+    except
+      on e: Exception do
+      begin
+        OutputDebugString('DBVM version check exception: ' + e.Message);
+        result := False;
+        exit;
+      end;
+    end;
 
     if parameters<>nil then
     begin

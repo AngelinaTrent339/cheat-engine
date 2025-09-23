@@ -926,13 +926,23 @@ NTSTATUS DispatchIoctl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 					QWORD password3;
 				} *pinp;
 				pinp=Irp->AssociatedIrp.SystemBuffer;
-				DbgPrint("IOCTL_CE_LAUNCHDBVM with dynamic passwords: %p-%x-%p\n", 
+				DbgPrint("=== IOCTL_CE_LAUNCHDBVM START ===\n");
+				DbgPrint("Received dynamic passwords: %p-%x-%p\n", 
 					(void*)pinp->password1, pinp->password2, (void*)pinp->password3);
+
+				// Validate passwords are not static defaults
+				if (pinp->password1 == 0xA7B9C2E4F6D8A1B3ULL || pinp->password3 == 0x9F3E7A5B2C4D8E1AULL || pinp->password2 == 0x5E8A1C7F) {
+					DbgPrint("ERROR: Received static passwords instead of dynamic ones!\n");
+					ntStatus = STATUS_INVALID_PARAMETER;
+					break;
+				}
 
 				// Set dynamic passwords BEFORE initializing DBVM to eliminate detection window
 				vmx_password1 = pinp->password1;
 				vmx_password2 = pinp->password2;
 				vmx_password3 = pinp->password3;
+				DbgPrint("Set kernel driver passwords to: %p-%x-%p\n", 
+					(void*)vmx_password1, vmx_password2, (void*)vmx_password3);
 
 				initializeDBVM((PCWSTR)(UINT_PTR)pinp->dbvmimgpath);
 
@@ -944,6 +954,8 @@ NTSTATUS DispatchIoctl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 					forOneCpu((CCHAR)pinp->cpuid, vmxoffload_dpc, NULL, NULL, NULL, vmxoffload_override);
 
 				DbgPrint("Returned from vmxoffload()\n");
+				DbgPrint("=== IOCTL_CE_LAUNCHDBVM COMPLETE ===\n");
+				ntStatus = STATUS_SUCCESS;
 				break;
 			}
 			
