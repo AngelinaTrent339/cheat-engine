@@ -990,9 +990,8 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
             break;
 
           case VM_IGGNE_MSR:
-            nosendchar[getAPICID()]=0;
-            sendstring("WEEEEEEEEEEEEEEEEEEEE\n");
-            while (1);
+            // Return realistic VM_IGGNE value to match real AMD hardware
+            value=readMSRSafe(VM_IGGNE_MSR); // Keep real hardware value to prevent detection
             break;
 
           case VM_HSAVE_PA_MSR:
@@ -1073,8 +1072,9 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
             break;
 
           case 0xc0010114: // VM_CR MSR - CRITICAL for startup detection
-            // Return a clean VM_CR value with no SVM lock bits set
-            value=0;
+            // FIXED: Return realistic VM_CR value instead of impossible 0
+            // Real SVM systems report non-zero VM_CR values
+            value=readMSRSafe(0xc0010114) & ~(1ULL<<4); // Clear SVM lock but keep other bits
             break;
 
           default:
@@ -1387,7 +1387,7 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
     case VMEXIT_CPUID:
     {
       nosendchar[getAPICID()]=0;
-      // Emulate CPUID with anti-detection masking for AMD guests
+      // Emulate CPUID for AMD guests
       UINT64 oldeax = currentcpuinfo->vmcb->RAX & 0xffffffffULL;
       UINT64 a = oldeax;
       UINT64 b = 0;
@@ -1398,30 +1398,12 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
 
       if (oldeax==1)
       {
-        // Clear hypervisor-present bit and VMX bit in ECX
-        c = c & (~(1ULL << 31));
-        c = c & (~(1ULL << 5));
+        if ((c & (1ULL << 26)) && (currentcpuinfo->vmcb->CR4 & CR4_OSXSAVE))
+          c |= (1ULL << 27);
       }
 
-      // CRITICAL: Hide AMD SVM features completely (0x8000000A)
-      if (oldeax == 0x8000000AULL)
-      {
-        // Zero all SVM feature information - prevents SVM detection at startup
-        a = 0; b = 0; c = 0; d = 0;
-      }
 
-      // CRITICAL: Hide SVM capability in extended features (0x80000001)
-      if (oldeax == 0x80000001ULL)
-      {
-        // Clear SVM bit (bit 2 in ECX) - prevents SVM detection at startup
-        c = c & (~(1ULL << 2));
-      }
 
-      // Hide hypervisor leaves entirely
-      if ((oldeax >= 0x40000000ULL) && (oldeax <= 0x400000FFULL))
-      {
-        a = 0; b = 0; c = 0; d = 0;
-      }
 
       // One-shot self-test prints
       if (!selftest_printed_cpuid1 && oldeax==1)
@@ -1437,12 +1419,12 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
       static volatile int selftest_printed_svm=0;
       if (!selftest_printed_svm && oldeax==0x8000000AULL)
       {
-        sendstringf("SelfTest: CPUID 0x8000000A (SVM) => EAX=%8 EBX=%8 ECX=%8 EDX=%8 (should be zeros)\n", (DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
+        sendstringf("SelfTest: CPUID 0x8000000A (SVM) => EAX=%8 EBX=%8 ECX=%8 EDX=%8 \n", (DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
         selftest_printed_svm=1;
       }
       if (!selftest_printed_hvsample && (oldeax>=0x40000000ULL && oldeax<=0x400000FFULL))
       {
-        sendstringf("SelfTest: HV leaf %8 masked sample => %8 %8 %8 %8\n", (DWORD)oldeax,(DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
+        sendstringf("SelfTest: HV leaf %8 sample => %8 %8 %8 %8\n", (DWORD)oldeax,(DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
         selftest_printed_hvsample=1;
       }
 
@@ -1834,5 +1816,3 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
   //still here
   return 1;
 }
-
-

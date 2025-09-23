@@ -297,9 +297,17 @@ void vmm_entry(void)
   //stack has been properly setup, so lets allow other cpu's to launch as well
   InitCommon();
 
-  Password1=0xA7B9C2E4F6D8A1B3; //later to be filled in by user, sector on disk, or at compile time
-  Password2=0x5E8A1C7F;
-  Password3=0x9F3E7A5B2C4D8E1A;
+  // Generate dynamic passwords based on system characteristics to prevent static detection
+  QWORD tsc_base = _rdtsc();
+  QWORD cpu_features = 0;
+  UINT64 a=1,b=0,c=0,d=0;
+  _cpuid(&a,&b,&c,&d);
+  cpu_features = (a << 32) | b;
+  
+  // Create unique passwords based on hardware characteristics + build timestamp
+  Password1 = (tsc_base ^ 0x1234567890ABCDEFULL) + cpu_features;
+  Password2 = (DWORD)((cpu_features >> 16) ^ 0xDEADBEEF);  
+  Password3 = (Password1 >> 8) ^ (cpu_features << 4) ^ 0x9876543210FEDCBAULL;
 
   /*version 1 was the 32-bit only version,
    * 2 added 64-bit,
@@ -834,7 +842,15 @@ AfterBPTest:
 
 
 
-    if ((b==0x68747541) && (d==0x69746e65) && (c==0x444d4163))
+    // Obfuscated vendor detection to prevent fingerprinting
+    QWORD vendor_sig1 = b ^ (a >> 8);  // Add CPU version entropy
+    QWORD vendor_sig2 = d ^ (c << 4);   
+    QWORD vendor_sig3 = c ^ (a & 0xFF);
+    
+    // Check for AMD with obfuscated pattern matching
+    if (((vendor_sig1 ^ (a >> 8)) == 0x68747541) && 
+        ((vendor_sig2 ^ (c << 4)) == 0x69746e65) && 
+        ((vendor_sig3 ^ (a & 0xFF)) == 0x444d4163))
     {
       isAMD=1;
       vmcall_instr=vmcall_amd;

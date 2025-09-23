@@ -945,7 +945,11 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       //sendstring("Version request\n\r");
       // Return real version only when proper passwords are provided. Probes get 0.
       if ((vmregisters->rdx==Password1) && (vmregisters->rcx==Password3) && (vmcall_instruction[1]==Password2))
-        vmregisters->rax=0xda000000 + dbvmversion;
+      {
+        // Obfuscate version response with dynamic XOR based on passwords
+        QWORD version_mask = (Password1 ^ Password3) & 0xFF000000ULL;
+        vmregisters->rax = version_mask + dbvmversion;
+      }
       else
         vmregisters->rax=0;
       break;
@@ -2418,7 +2422,8 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
         if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
         {
           unmapVMmemory(peek, 12);
-          return raiseInvalidOpcodeException(currentcpuinfo);
+          // FIXED: Return #GP instead of #UD to match bare metal VMCALL behavior
+          return raiseGeneralProtectionFault(0);
         }
       }
       unmapVMmemory(peek, 12);
@@ -2427,16 +2432,17 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     {
       // If we can't peek, require passwords for safety
       if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
-        return raiseInvalidOpcodeException(currentcpuinfo);
+        // FIXED: Return #GP instead of #UD to match bare metal VMCALL behavior
+        return raiseGeneralProtectionFault(0);
     }
   }
 
   // Check for probe attempts: if someone calls VMCALL without proper structure, 
-  // behave like bare metal (raise #UD)
+  // behave like bare metal (raise #GP not #UD)
   if (vmregisters->rax == 0)
   {
-    // Likely a detection probe - no valid structure pointer
-    return raiseInvalidOpcodeException(currentcpuinfo);
+    // Likely a detection probe - return #GP like real VMCALL failures
+    return raiseGeneralProtectionFault(0);
   }
 
   //sendstringf("Password1 is valid\n\r");
@@ -2471,9 +2477,10 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   // Check password2 in the vmcall structure header
   if (vmcall_instruction[1] != Password2)
   {
-    sendstringf("VMCALL: Invalid Password2. Raising #UD.\n");
+    sendstringf("VMCALL: Invalid Password2. Raising #GP.\n");
     unmapVMmemory(vmcall_instruction, 12);
-    return raiseInvalidOpcodeException(currentcpuinfo);
+    // FIXED: Return #GP instead of #UD to match bare metal VMCALL behavior
+    return raiseGeneralProtectionFault(0);
   }
 
   int vmcall_instruction_size=vmcall_instruction[0];

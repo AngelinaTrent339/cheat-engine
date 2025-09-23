@@ -37,7 +37,7 @@ int CR3ValuePos;
 volatile QWORD globalTSC;
 volatile QWORD lowestTSC=0;
 
-int adjustTimestampCounters=1;
+int adjustTimestampCounters=0;
 int adjustTimestampCounterTimeout=1800; // Slightly randomized from 2000
 
 int useSpeedhack=0;
@@ -1811,17 +1811,38 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   {
     case IA32_TIME_STAMP_COUNTER:
       return handle_rdtsc(currentcpuinfo, vmregisters); //handles the register setting and rip adjustment
+      
+    // CRITICAL FIX: Add missing APERF/MPERF virtualization to prevent TSC comparison detection
+    case 0xe7: // IA32_MPERF 
+    {
+      // Scale MPERF proportionally with TSC to maintain realistic ratios
+      QWORD real_mperf = readMSRSafe(0xe7);
+      QWORD scaled_mperf = (real_mperf * currentcpuinfo->lowestTSC) / _rdtsc();
+      result = scaled_mperf;
+      break;
+    }
+    
+    case 0xe8: // IA32_APERF
+    {
+      // Scale APERF proportionally with TSC to maintain realistic ratios  
+      QWORD real_aperf = readMSRSafe(0xe8);
+      QWORD scaled_aperf = (real_aperf * currentcpuinfo->lowestTSC) / _rdtsc();
+      result = scaled_aperf;
+      break;
+    }
 
 
-	  case IA32_FEATURE_CONTROL_MSR:
-	    result=readMSRSafe(IA32_FEATURE_CONTROL_MSR);
-	    result=result | FEATURE_CONTROL_LOCK; //set the LOCK bit (so the system thinks it can't be changed anymore)
-
-	    result=result & ~(FEATURE_CONTROL_VMXON_SMX); //unset the VMX capability in SMX mode
-
-	    if (emulatevmx==0)
-	      result=result & ~(FEATURE_CONTROL_VMXON); //unset the VMX capability
-	    break;
+    case IA32_FEATURE_CONTROL_MSR:
+      // CRITICAL FIX: Return realistic VMX-enabled state instead of impossible "locked but disabled"
+      // Anti-cheat detects the impossible state where LOCK=1 but VMX bits are 0
+      result=readMSRSafe(IA32_FEATURE_CONTROL_MSR);
+      
+      // Ensure realistic state: if lock bit is set, VMX enable bits should also be set
+      // This matches what real systems with working VMX report
+      if (result & FEATURE_CONTROL_LOCK) {
+        result |= FEATURE_CONTROL_VMXON;  // Set VMX enable if locked
+      }
+      break;
 
     case 0x174: //sysenter_CS
       result=currentcpuinfo->sysenter_CS;
@@ -1863,9 +1884,6 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
           result=result & (~(QWORD)(1<<10)); //unset LMA
       }
 
-      // CRITICAL: Always hide SVME bit from guest - prevents SVM detection
-      result = result & ~(1ULL<<12); // Clear SVME bit (bit 12)
-
       //nosendchar[getAPICID()]=0;
       sendstringf("read efer. Returning %x\n\r",result);
 
@@ -1885,23 +1903,28 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
       break;
     }
 
-    // CRITICAL: AMD SVM MSRs - Hide these to prevent startup detection
-    case 0xc0010117: // VM_HSAVE_PA_MSR
-      // ALWAYS return 0 for VM_HSAVE_PA - indicates SVM not active
-      result = 0;
-      sendstringf("Generic handler: VM_HSAVE_PA read - returning 0\n");
+    // AMD SVM MSRs - return realistic values to prevent detection
+    case 0xc0010114: // VM_CR
+      if (isAMD) {
+        // Return realistic VM_CR value with SVM lock cleared
+        result=readMSRSafe(msr) & ~(1ULL<<4); // Clear SVM lock but keep other hardware bits
+      } else
+        return raiseGeneralProtectionFault(0);
       break;
-
-    case 0xc0010114: // VM_CR 
-      // Return clean VM_CR value with no SVM lock bits set
-      result = 0;
-      sendstringf("Generic handler: VM_CR read - returning 0\n");
-      break;
-
+      
     case 0xc0010115: // VM_IGGNE
-      // Return 0 to hide SVM presence
-      result = 0;
-      sendstringf("Generic handler: VM_IGGNE read - returning 0\n");
+      if (isAMD) {
+        // Return realistic non-zero VM_IGGNE value to match real AMD hardware
+        result=readMSRSafe(msr); // Keep real hardware value
+      } else
+        return raiseGeneralProtectionFault(0);
+      break;
+      
+    case 0xc0010117: // VM_HSAVE_PA_MSR
+      if (isAMD)
+        result=readMSRSafe(msr);
+      else
+        return raiseGeneralProtectionFault(0);
       break;
 
     default:
@@ -1959,45 +1982,35 @@ int handleCPUID(VMRegisters *vmregisters)
   UINT64 oldeax=vmregisters->rax;
   _cpuid(&(vmregisters->rax),&(vmregisters->rbx),&(vmregisters->rcx),&(vmregisters->rdx));
 
+  // CRITICAL ANTI-DETECTION: Hide virtualization capabilities to prevent startup fingerprinting
   if (oldeax==1)
   {
-    //remove the hypervisor active bit (bit 31 in ecx)
-    vmregisters->rcx=vmregisters->rcx & (~(1ULL << 31));
-
-    //remove vmx capability in ecx
-    vmregisters->rcx=vmregisters->rcx & (~(1ULL << 5)); //set bit 5 to 0
-
-    if ((vmregisters->rcx & (1<<26)) && (vmread(vm_guest_cr4) & CR4_OSXSAVE)) //doe sit have OSXSave capabilities and is it enabled ?
+    // Preserve real VMX capability state to avoid detection
+    // Only apply OSXSAVE logic, don't clear VMX bit (bit 5)
+    if ((vmregisters->rcx & (1<<26)) && (vmread(vm_guest_cr4) & CR4_OSXSAVE)) //does it have OSXSave capabilities and is it enabled ?
       vmregisters->rcx=vmregisters->rcx | (1 << 27); //the guest has activated osxsave , represent that in cpuid
+    
+    // DO NOT clear VMX bit - this would be detectable on real hardware that supports VMX
+    // Anti-cheat expects VMX to be present on VMX-capable processors
   }
-
-  // CRITICAL: Hide AMD SVM features completely (0x8000000A)
-  if (oldeax == 0x8000000A)
+  
+  // Hide hypervisor presence while preserving hardware virtualization features
+  if (oldeax >= 0x40000000ULL && oldeax <= 0x400000FFULL)
   {
-    // Zero all SVM feature information - prevents SVM detection at startup
+    // Return zeros for hypervisor CPUID leaves to hide hypervisor presence
+    // But don't touch the underlying hardware VMX/SVM capability reporting
     vmregisters->rax = 0;
     vmregisters->rbx = 0;
     vmregisters->rcx = 0;
     vmregisters->rdx = 0;
   }
-
-  // CRITICAL: Hide SVM capability in extended features (0x80000001)
-  if (oldeax == 0x80000001)
+  
+  // For AMD SVM detection leaf - preserve real hardware response
+  if (oldeax == 0x8000000AULL)
   {
-    // Clear SVM bit (bit 2 in ECX) - prevents SVM detection at startup
-    vmregisters->rcx = vmregisters->rcx & (~(1ULL << 2));
+    // Keep real SVM capabilities - clearing them on SVM-capable hardware is detectable
+    // Anti-cheat expects this leaf to exist and return valid data on AMD SVM systems
   }
-
-  // Block hypervisor CPUID leaves (0x40000000-0x400000FF)
-  if ((oldeax >= 0x40000000) && (oldeax <= 0x400000FF))
-  {
-    // Return invalid/zero values to hide hypervisor presence
-    vmregisters->rax = 0;
-    vmregisters->rbx = 0;
-    vmregisters->rcx = 0;
-    vmregisters->rdx = 0;
-  }
-
   /*
   if (oldeax==0x80000002)
   {
@@ -4046,32 +4059,43 @@ int handle_rdtsc(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   }
 
 
-  if (adjustTimestampCounters)
+  if (useSpeedhack)
   {
-    if ((realtime-currentcpuinfo->lastTSCTouch)<(QWORD)adjustTimestampCounterTimeout) //todo: and not a forbidden RIP
+    if (adjustTimestampCounters)
     {
-
-      // Randomize offset to prevent detection fingerprinting
-      int base_off = 15 + (realtime & 0x1f); // 15-46 instead of 20-35
-      int jitter = (realtime >> 8) & 0x7;     // Additional 0-7 jitter
-      int off = base_off + jitter;
-
-
-      t=currentcpuinfo->lowestTSC+off;
-      //t=lTSC+off;
-
-      //writeMSR(0x838, readMSR(0x838));
-
-      //lockedQwordIncrement(&lowestTSC,off);
-      currentcpuinfo->lowestTSC=t;
-
+      if ((realtime-currentcpuinfo->lastTSCTouch)<(QWORD)adjustTimestampCounterTimeout) //todo: and not a forbidden RIP
+      {
+        // ENHANCED ANTI-DETECTION: Much wider and more natural TSC variation
+        // Remove detectable 15-53 cycle floor and rhythmic patterns
+        QWORD entropy1 = realtime ^ (realtime >> 16);
+        QWORD entropy2 = _rdtsc(); // Fresh entropy source
+        
+        int base_off = 5 + (int)((entropy1 ^ entropy2) & 0x7F); // 5-132 range
+        int jitter = (int)((entropy2 >> 12) & 0x3F);            // 0-63 additional jitter  
+        int timing_variance = (int)((entropy1 >> 24) & 0x1F);   // 0-31 timing variance
+        
+        int off = base_off + jitter + timing_variance; // Total: 5-226 cycle range
+        // Add non-linear component to break pattern detection
+        off = off ^ ((int)(entropy2 >> 4) & 0x7);
+        
+        t=currentcpuinfo->lowestTSC+off;
+        currentcpuinfo->lowestTSC=t;
+      }
+      else
+      {
+        if (lowestTSC<t)
+          lowestTSC=t;
+        currentcpuinfo->lowestTSC=t;
+      }
     }
     else
     {
-      if (lowestTSC<t)
-        lowestTSC=t;
       currentcpuinfo->lowestTSC=t;
     }
+  }
+  else
+  {
+    currentcpuinfo->lowestTSC=t;
   }
 
   if (isAMD)
@@ -4699,9 +4723,13 @@ int handleVMEvent(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE64 *f
     }
 
     counter++;
-    // Randomize debug output interval to prevent detection fingerprinting
+    // Enhanced randomized debug output interval to prevent detection fingerprinting
     QWORD tsc = _rdtsc();
-    int debug_interval = 7500 + ((tsc >> 8) & 0x7FF); // 7500-8523 range instead of fixed 8192
+    QWORD tsc2 = _rdtsc() ^ (tsc << 16); // Double entropy
+    // Much wider range: 2048-65535 with multiple entropy sources
+    int debug_interval = 2048 + (int)((tsc2 ^ (counter << 12)) & 0xFFFF); 
+    // Additional non-linear mixing to prevent pattern analysis
+    debug_interval = debug_interval ^ ((tsc >> 24) & 0x1FF);
     if (counter % debug_interval==0)
       show=1; //show anyhow to show it's alive
 
@@ -4746,9 +4774,5 @@ int handleVMEvent(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE64 *f
 
     }
   }
-
-
-
-
   return result;
 }
