@@ -1805,13 +1805,15 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (hasEPTsupport || hasNPsupport)
       {
-        PVMCALL_CLOAK_TRACEONBP_GETSTATUS_PARAM p=(PVMCALL_CLOAK_TRACEONBP_GETSTATUS_PARAM)vmcall_instruction;
+        // Skip the complex struct typedef and access data directly from vmcall_instruction
+        DWORD *count_ptr = &vmcall_instruction[3];      // count field
+        DWORD *maxcount_ptr = &vmcall_instruction[4];   // maxcount field
         nosendchar[getAPICID()]=0;
 
-        sendstringf("VMCALL_CLOAK_TRACEONBP_GETSTATUS:\nbefore p->count=%d p->maxcount=%d", p->count, p->maxcount);
+        sendstringf("VMCALL_CLOAK_TRACEONBP_GETSTATUS:\nbefore count=%d maxcount=%d", *count_ptr, *maxcount_ptr);
 
-        vmregisters->rax=ept_cloak_traceonbp_getstatus(&p->count,&p->maxcount);
-        sendstringf("after p->count=%d p->maxcount=%d", p->count, p->maxcount);
+        vmregisters->rax=ept_cloak_traceonbp_getstatus(count_ptr, maxcount_ptr);
+        sendstringf("after count=%d maxcount=%d", *count_ptr, *maxcount_ptr);
       }
       else
         vmregisters->rax=0xdadead;
