@@ -300,9 +300,11 @@ void vmm_entry(void)
   // Generate dynamic passwords based on system characteristics to prevent static detection
   QWORD tsc_base = _rdtsc();
   QWORD cpu_features = 0;
-  UINT64 a=1,b=0,c=0,d=0;
-  _cpuid(&a,&b,&c,&d);
-  cpu_features = (a << 32) | b;
+  {
+    UINT64 temp_a=1,temp_b=0,temp_c=0,temp_d=0;
+    _cpuid(&temp_a,&temp_b,&temp_c,&temp_d);
+    cpu_features = (temp_a << 32) | temp_b;
+  }
   
   // Create unique passwords based on hardware characteristics + build timestamp
   Password1 = (tsc_base ^ 0x1234567890ABCDEFULL) + cpu_features;
