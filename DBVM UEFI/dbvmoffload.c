@@ -15,6 +15,7 @@ typedef UINT16 WORD, *PWORD;
 typedef void *PVOID;
 
 
+// Static passwords - for UEFI compatibility
 UINT64 password1=0xA7B9C2E4F6D8A1B3;
 DWORD password2=0x5E8A1C7F;
 UINT64 password3=0x9F3E7A5B2C4D8E1A;

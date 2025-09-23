@@ -297,19 +297,12 @@ void vmm_entry(void)
   //stack has been properly setup, so lets allow other cpu's to launch as well
   InitCommon();
 
-  // Generate dynamic passwords based on system characteristics to prevent static detection
-  QWORD tsc_base = _rdtsc();
-  QWORD cpu_features = 0;
-  {
-    UINT64 temp_a=1,temp_b=0,temp_c=0,temp_d=0;
-    _cpuid(&temp_a,&temp_b,&temp_c,&temp_d);
-    cpu_features = (temp_a << 32) | temp_b;
-  }
+  // Static default passwords - may be patched by kernel driver before execution
+  Password1 = 0xA7B9C2E4F6D8A1B3ULL;
+  Password2 = 0x5E8A1C7F;
+  Password3 = 0x9F3E7A5B2C4D8E1AULL;
   
-  // Create unique passwords based on hardware characteristics + build timestamp
-  Password1 = (tsc_base ^ 0x1234567890ABCDEFULL) + cpu_features;
-  Password2 = (DWORD)((cpu_features >> 16) ^ 0xDEADBEEF);  
-  Password3 = (Password1 >> 8) ^ (cpu_features << 4) ^ 0x9876543210FEDCBAULL;
+  sendstringf("DBVM initialized with passwords: %6-%8-%6\n", Password1, Password2, Password3);
 
   /*version 1 was the 32-bit only version,
    * 2 added 64-bit,

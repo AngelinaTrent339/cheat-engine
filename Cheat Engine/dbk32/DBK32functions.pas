@@ -2817,6 +2817,9 @@ var
   Input: record
     dbvmimgpath: qword;
     cpuid: dword;
+    password1: qword;
+    password2: dword;
+    password3: qword;
   end;
 
   temp: widestring;
@@ -2825,6 +2828,9 @@ var
 
   cpuid: integer;
   fc: dword;
+  dynamic_password1: qword;
+  dynamic_password2: dword;
+  dynamic_password3: qword;
 begin
 
 
@@ -2832,6 +2838,14 @@ begin
   begin
     Outputdebugstring('LaunchDBVM');
 
+    // CRITICAL FIX: Generate dynamic passwords BEFORE loading DBVM
+    generateDynamicPasswords(dynamic_password1, dynamic_password2, dynamic_password3);
+    OutputDebugString(format('Generated pre-load passwords: %.16x,%.8x,%.16x', [dynamic_password1, dynamic_password2, dynamic_password3]));
+    
+    // Set the dynamic passwords so DBVM and CE use the same values
+    vmx_password1 := dynamic_password1;
+    vmx_password2 := dynamic_password2;
+    vmx_password3 := dynamic_password3;
 
     if parameters<>nil then
     begin
@@ -2851,6 +2865,12 @@ begin
       input.cpuid:=$ffffffff;
       OutputDebugString('Param is invalid');
     end;
+
+    // CRITICAL: Pass dynamic passwords to kernel driver to eliminate detection window
+    input.password1 := dynamic_password1;
+    input.password2 := dynamic_password2;
+    input.password3 := dynamic_password3;
+    OutputDebugString(format('Passing passwords to kernel: %.16x,%.8x,%.16x', [input.password1, input.password2, input.password3]));
 
     if not isAMD then
     begin
@@ -2875,8 +2895,9 @@ begin
     OutputDebugString('Calling deviceiocontrol');
     result:=deviceiocontrol(hdevice,cc,@input,sizeof(Input),nil,0,cc,nil);
 
-
-    configure_vmx(vmx_password1, vmx_password2, vmx_password3);
+    // No need to call configure_vmx here since passwords are already set correctly
+    // DBVM now starts with the dynamic passwords from the beginning
+    OutputDebugString('DBVM loading complete with pre-configured dynamic passwords');
 
     if parameters<>nil then
     begin

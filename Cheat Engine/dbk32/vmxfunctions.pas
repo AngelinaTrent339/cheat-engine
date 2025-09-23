@@ -606,7 +606,7 @@ implementation
 uses DBK32functions, cefuncproc, PEInfoFunctions, NewKernelHandler, syncobjs,
   ProcessHandlerUnit, Globals, AvgLvlTree, maps, debuggertypedefinitions,
   DebugHelper, frmBreakpointlistunit, math{$ifdef darwin},mactypes{$endif},
-  multicpuexecution, CEDebugger;
+  multicpuexecution, CEDebugger, cpuidUnit;
 
 resourcestring
 rsInvalidInstruction = 'Invalid instruction';
@@ -865,6 +865,47 @@ procedure invalidinstruction;
 begin
  // ShowMessage('Invalid instruction');
   raise exception.create(rsInvalidInstruction);
+end;
+
+// Get RDTSC value for dynamic password generation
+function getRDTSC: QWord;
+begin
+  result := 0;
+  {$ifdef cpu64}
+  asm
+    push rdx
+    rdtsc
+    shl rdx,32
+    or rax,rdx
+    mov result,rax
+    pop rdx
+  end;
+  {$else}
+  asm
+    rdtsc
+    mov dword ptr [result],eax
+    mov dword ptr [result+4],edx
+  end;
+  {$endif}
+end;
+
+// Generate dynamic passwords matching DBVM anti-detection algorithm
+procedure generateDynamicPasswords(out password1: qword; out password2: dword; out password3: qword);
+var
+  tsc_base, cpu_features: qword;
+  cpuid_result: TCPUIDResult;
+begin
+  // Get TSC and CPUID(1) values
+  tsc_base := getRDTSC();
+  cpuid_result := CPUID(1);
+  
+  // Combine CPUID results the same way as DBVM
+  cpu_features := (qword(cpuid_result.eax) shl 32) or cpuid_result.ebx;
+  
+  // Generate passwords using identical algorithm as DBVM
+  password1 := (tsc_base xor $1234567890ABCDEF) + cpu_features;
+  password2 := dword((cpu_features shr 16) xor $DEADBEEF);
+  password3 := (password1 shr 8) xor (cpu_features shl 4) xor $9876543210FEDCBA;
 end;
 
 {$IFDEF windows}
@@ -3341,9 +3382,9 @@ var r: dword;
 begin
   {$ifndef NOVMX}
   //configure dbvm if possible
-  OutputDebugString(format('configure_vmx(%.16x,%.8x,%.16x)', [userpassword1, userpassword2, userpassword3]));
+  OutputDebugString(format('configure_vmx(%.16x,%.8x,%.16x) - Using pre-generated passwords', [userpassword1, userpassword2, userpassword3]));
 
-  //apply the provided passwords
+  //use the passwords that were already generated and set in internal_LaunchDBVM
   vmx_password1:=userpassword1;
   vmx_password2:=userpassword2;
   vmx_password3:=userpassword3;

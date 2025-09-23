@@ -12,6 +12,7 @@ jumps into dbvm's os entry point
 
 #include <ntifs.h>
 #include <windef.h>
+#include <intrin.h>
 
 #include "dbkfunc.h"
 #include "vmxoffload.h"
@@ -282,10 +283,8 @@ Runs at passive mode
 
 	vmm = MmMapLockedPagesSpecifyCache(DBVMMDL, KernelMode, MmCached, NULL, FALSE, 0);
 	
-	//default password when dbvm is just loaded (needed for adding extra ram)
-	vmx_password1 = 0xA7B9C2E4F6D8A1B3;
-	vmx_password2 = 0x5E8A1C7F;
-	vmx_password3 = 0x9F3E7A5B2C4D8E1A;
+	// Dynamic passwords are now set by IOCTL_CE_LAUNCHDBVM caller before this function
+	DbgPrint("initializeDBVM using dynamic passwords: %p-%x-%p\n", (void*)vmx_password1, vmx_password2, (void*)vmx_password3);
 
 
 	if (vmm)
@@ -652,6 +651,8 @@ Runs at passive mode
 			}
 			ZwClose(dbvmimghandle);
 
+			// CRITICAL: Patch DBVM's password variables with dynamic values to eliminate detection window
+			patchDBVMPasswords();
 
 			DbgPrint("Opened and processed: %S\n", filename.Buffer);
 		}
@@ -667,6 +668,59 @@ Runs at passive mode
 		DbgPrint("Failure allocating the required 4MB\n");
 	}
 	ExFreePool(DBVMMDL);
+}
+
+void patchDBVMPasswords(void)
+/*
+Patches DBVM's static password variables with dynamic ones to eliminate detection window
+*/
+{
+	if (!vmm) return;
+	
+	// Map the DBVM memory back temporarily for patching
+	unsigned char* vmmTemp = MmMapLockedPagesSpecifyCache(DBVMMDL, KernelMode, MmCached, NULL, FALSE, 0);
+	if (!vmmTemp) {
+		DbgPrint("Failed to map DBVM memory for password patching\n");
+		return;
+	}
+	
+	const QWORD staticPassword1 = 0xA7B9C2E4F6D8A1B3ULL;
+	const DWORD staticPassword2 = 0x5E8A1C7F;
+	const QWORD staticPassword3 = 0x9F3E7A5B2C4D8E1AULL;
+	
+	int patchCount = 0;
+	
+	// Search for and replace password variables in the 4MB DBVM image
+	for (int i = 0; i < (4 * 1024 * 1024 - sizeof(QWORD)); i++) {
+		QWORD* qwordPtr = (QWORD*)(vmmTemp + i);
+		DWORD* dwordPtr = (DWORD*)(vmmTemp + i);
+		
+		// Check for Password1 (QWORD)
+		if (*qwordPtr == staticPassword1) {
+			*qwordPtr = vmx_password1;
+			patchCount++;
+			DbgPrint("Patched Password1 at offset 0x%x: %p -> %p\n", i, (void*)staticPassword1, (void*)vmx_password1);
+		}
+		
+		// Check for Password2 (DWORD)  
+		if (*dwordPtr == staticPassword2) {
+			*dwordPtr = vmx_password2;
+			patchCount++;
+			DbgPrint("Patched Password2 at offset 0x%x: %x -> %x\n", i, staticPassword2, vmx_password2);
+		}
+		
+		// Check for Password3 (QWORD)
+		if (*qwordPtr == staticPassword3) {
+			*qwordPtr = vmx_password3;
+			patchCount++;
+			DbgPrint("Patched Password3 at offset 0x%x: %p -> %p\n", i, (void*)staticPassword3, (void*)vmx_password3);
+		}
+	}
+	
+	DbgPrint("Password patching complete: %d patches applied\n", patchCount);
+	
+	// Unmap the temporary mapping
+	MmUnmapLockedPages(vmmTemp, DBVMMDL);
 }
 
 void vmxoffload(void)
