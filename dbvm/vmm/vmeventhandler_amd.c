@@ -989,10 +989,6 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
 
             break;
 
-          case VM_IGGNE_MSR:
-            // Return realistic VM_IGGNE value to match real AMD hardware
-            value=readMSRSafe(VM_IGGNE_MSR); // Keep real hardware value to prevent detection
-            break;
 
           case VM_HSAVE_PA_MSR:
             //nosendchar[getAPICID()]=0;
@@ -1069,6 +1065,11 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
           case VM_HSAVE_PA_MSR:
             // ALWAYS return 0 for VM_HSAVE_PA - CRITICAL for startup detection
             value=0;
+            break;
+
+          case VM_IGGNE_MSR:
+            // Return realistic VM_IGGNE value to match real AMD hardware
+            value=readMSRSafe(VM_IGGNE_MSR); // Keep real hardware value to prevent detection
             break;
 
           case 0xc0010114: // VM_CR MSR - CRITICAL for startup detection
