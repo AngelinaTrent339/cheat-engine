@@ -573,6 +573,7 @@ procedure dbvm_ultimap2_hideRangeUsage;
 
 procedure configure_vmx(userpassword1: qword; userpassword2: dword; userpassword3: qword);
 procedure configure_vmx_kernel;
+procedure generateDynamicPasswords(out password1: qword; out password2: dword; out password3: qword);
 
 function ReadProcessMemoryWithCloakSupport(hProcess: THandle; lpBaseAddress, lpBuffer: Pointer; nSize: DWORD; var lpNumberOfBytesRead: PTRUINT): BOOL; stdcall;
 function WriteProcessMemoryWithCloakSupport(hProcess: THandle; lpBaseAddress, lpBuffer: Pointer; nSize: DWORD; var lpNumberOfBytesWritten: PTRUINT): BOOL; stdcall;
@@ -1095,6 +1096,7 @@ var
   end;
   rawresult: dword;
   expectedMask: dword;
+  rawMask: dword;
 begin
 
   //FALLBACK PASSWORD MECHANISM DISABLED
@@ -1105,10 +1107,9 @@ begin
   try
     rawresult:=vmcall(@vmcallinfo);
     expectedMask:=dword((vmx_password1 xor vmx_password3) and qword($ff000000));
-    if expectedMask=0 then
-      expectedMask:=$da000000;
-
-    if (rawresult<>0) and ((rawresult and $ff000000)=expectedMask) then
+    rawMask:=rawresult and $ff000000;
+    
+    if (rawresult<>0) and ((rawMask=expectedMask) or (rawMask=$da000000)) then
     begin
       // Normalize the dynamic mask so existing version checks keep their 0xDA prefix
       result:=(rawresult and $00ffffff) or $da000000;
@@ -1119,6 +1120,7 @@ begin
   except
     result:=0;
   end;
+end;
 end;
 
 function dbvm_changepassword(password1:Qword; password2: dword; password3: Qword): DWORD; stdcall;
