@@ -637,7 +637,7 @@ type
   end;
   PCloakedMemInfo=^TCloakedMemInfo;
 
-procedure flushCloakedMemoryCache(address: ptruint=0);
+procedure flushCloakedMemoryCache(address: ptruint);
 var
   mi: TMapIterator;
   cmi: PCloakedMemInfo;
@@ -670,7 +670,7 @@ begin
       end;
     end;
   end;
-end;
+  end;
 
 function getCloakedMemory(PhysicalAddress: qword; VirtualAddress: ptruint; destination: pointer; size: integer): integer;
 //read the dbvm cloaked memory (assuming it is cloaked) and returns the number of bytes read. (can be less than size)
@@ -1101,7 +1101,6 @@ begin
   except
     result:=0;
   end;
-end;
 end;
 
 function dbvm_changepassword(password1:Qword; password2: dword; password3: Qword): DWORD; stdcall;
@@ -2101,7 +2100,7 @@ begin
 
   result:=vmcall(@vmcallinfo);
 
-  flushCloakedMemoryCache;
+  flushCloakedMemoryCache(0);
 end;
 
 

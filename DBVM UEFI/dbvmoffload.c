@@ -24,7 +24,7 @@ const UINT64 XOR_MASK_3 = 0xFEEDFACE13377331ULL;
 // Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
 UINT64 password1 = 0xCD9AAD4814537A60ULL ^ XOR_MASK_1;  // Different length (64-bit)
 DWORD password2 = 0x1337BF31 ^ XOR_MASK_2;              // Much shorter (16-bit) 
-UINT64 password3 = 0x34134470000006006ULL ^ XOR_MASK_3;  // Custom pattern
+UINT64 password3 = 0x3413407000006006ULL ^ XOR_MASK_3;  // Custom pattern
 
 
 extern void enterVMM( void ); //declared in vmxoffloada.asm

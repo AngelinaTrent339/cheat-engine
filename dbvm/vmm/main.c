@@ -305,7 +305,7 @@ void vmm_entry(void)
   // Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
   Password1 = 0xCD9AAD4814537A60ULL ^ XOR_MASK_1;  // Different length (64-bit)
   Password2 = 0x1337BF31 ^ (DWORD)XOR_MASK_2;      // Much shorter (16-bit) 
-  Password3 = 0x34134470000006006ULL ^ XOR_MASK_3;  // Custom pattern
+  Password3 = 0x3413407000006006ULL ^ XOR_MASK_3;  // Custom pattern
   
   sendstringf("DBVM initialized with protected passwords\n");
 

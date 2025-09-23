@@ -2825,6 +2825,9 @@ var
 
   cpuid: integer;
   fc: dword;
+  XOR_MASK_1: qword;
+  XOR_MASK_2: dword;
+  XOR_MASK_3: qword;
 begin
 
 
@@ -2833,14 +2836,14 @@ begin
     Outputdebugstring('LaunchDBVM');
 
     // OBFUSCATED CUSTOM PASSWORDS - same as DBVM but protected from memory scanning  
-    const XOR_MASK_1: qword = $DEADBEEFCAFEBABE;
-    const XOR_MASK_2: dword = $1337C0DE;
-    const XOR_MASK_3: qword = $FEEDFACE13377331;
+    XOR_MASK_1 := $DEADBEEFCAFEBABE;
+    XOR_MASK_2 := $1337C0DE;
+    XOR_MASK_3 := $FEEDFACE13377331;
     
     // Real passwords: $13371337DEADC0DE, $BEEF, $CAFEBABE13371337
     vmx_password1 := $CD9AAD4814537A60 xor XOR_MASK_1;  // Different length (64-bit)
     vmx_password2 := $1337BF31 xor XOR_MASK_2;          // Much shorter (16-bit) 
-    vmx_password3 := $34134470000006006 xor XOR_MASK_3;  // Custom pattern
+    vmx_password3 := $3413407000006006 xor XOR_MASK_3;  // Custom pattern
     
     OutputDebugString('Set CE to use protected custom passwords');
 

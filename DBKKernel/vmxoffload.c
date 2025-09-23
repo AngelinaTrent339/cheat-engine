@@ -291,7 +291,7 @@ Runs at passive mode
 	// Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
 	vmx_password1 = 0xCD9AAD4814537A60ULL ^ XOR_MASK_1;  // Different length (64-bit)
 	vmx_password2 = 0x1337BF31 ^ (DWORD)XOR_MASK_2;      // Much shorter (16-bit) 
-	vmx_password3 = 0x34134470000006006ULL ^ XOR_MASK_3;  // Custom pattern
+    vmx_password3 = 0x3413407000006006ULL ^ XOR_MASK_3;  // Custom pattern
 	
 	DbgPrint("initializeDBVM using protected custom passwords\n");
 
