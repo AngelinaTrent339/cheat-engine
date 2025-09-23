@@ -2058,28 +2058,36 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
     case VMCALL_ADD_MEMORY:
     {
-      PVMCALL_ADD_MEMORY_PARAM p=(PVMCALL_ADD_MEMORY_PARAM)vmcall_instruction;
-      int pagecount=(p->vmcall.size-sizeof(VMCALL_ADD_MEMORY_PARAM)) / 8;
+      // Skip the complex struct typedef and access data directly from vmcall_instruction
+      DWORD total_size = vmcall_instruction[0];  // Total structure size
+      DWORD vmcall_basic_size = 12;              // sizeof(VMCALL_BASIC) = 3 * sizeof(DWORD)
+      int pagecount = (total_size - vmcall_basic_size) / 8; // Each page is 8 bytes (QWORD)
+      QWORD *physical_pages = (QWORD*)&vmcall_instruction[3]; // PhysicalPages starts after VMCALL_BASIC
 
       nosendchar[getAPICID()]=0;
       sendstringf("VMCALL_ADD_MEMORY\n");
-      mmAddPhysicalPageListToDBVM(p->PhysicalPages, pagecount,0);
+      mmAddPhysicalPageListToDBVM(physical_pages, pagecount,0);
       vmregisters->rax = pagecount; //0;
       break;
     }
 
     case VMCALL_SETTSCADJUST:
     {
-      PVMCALL_SETTSCADJUST_PARAM p=(PVMCALL_SETTSCADJUST_PARAM)vmcall_instruction;
-      adjustTimestampCounterTimeout=p->timeout;
-      adjustTimestampCounters=p->enabled;
+      // Skip the complex struct typedef and access data directly from vmcall_instruction
+      int enabled = vmcall_instruction[3];
+      int timeout = vmcall_instruction[4];
+      
+      adjustTimestampCounterTimeout=timeout;
+      adjustTimestampCounters=enabled;
       break;
     }
 
     case VMCALL_SETSPEEDHACK:
     {
-      PVMCALL_SETSPEEDHACK_PARAM p=(PVMCALL_SETSPEEDHACK_PARAM)vmcall_instruction;
-      speedhack_setspeed(p->speedhackspeed);
+      // Skip the complex struct typedef and access data directly from vmcall_instruction
+      double *speedhackspeed_ptr = (double*)&vmcall_instruction[3]; // double starts after VMCALL_BASIC
+      
+      speedhack_setspeed(*speedhackspeed_ptr);
       break;
     }
 
