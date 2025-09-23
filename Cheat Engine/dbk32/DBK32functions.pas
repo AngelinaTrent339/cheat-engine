@@ -1,4 +1,4 @@
-﻿ unit DBK32functions;
+ unit DBK32functions;
 
 {$MODE Delphi}
 
@@ -78,6 +78,7 @@ const IOCTL_CE_GETSDTADDRESS 			    =	(IOCTL_UNKNOWN_BASE shl 16) or ($0829 shl 
 
 const IOCTL_CE_GETGDT 					  	  = (IOCTL_UNKNOWN_BASE shl 16) or ($082a shl 2) or (METHOD_BUFFERED ) or (FILE_RW_ACCESS shl 14);
 const IOCTL_CE_SETCR4 					  	  = (IOCTL_UNKNOWN_BASE shl 16) or ($082b shl 2) or (METHOD_BUFFERED ) or (FILE_RW_ACCESS shl 14);
+const IOCTL_CE_DBVM_GETPASSWORDS      = (IOCTL_UNKNOWN_BASE shl 16) or ($0838 shl 2) or (METHOD_BUFFERED ) or (FILE_RW_ACCESS shl 14);
 const IOCTL_CE_VMXCONFIG				  	  = (IOCTL_UNKNOWN_BASE shl 16) or ($082d shl 2) or (METHOD_BUFFERED ) or (FILE_RW_ACCESS shl 14);
 const IOCTL_CE_GETCR0 					  	  = (IOCTL_UNKNOWN_BASE shl 16) or ($082e shl 2) or (METHOD_BUFFERED ) or (FILE_RW_ACCESS shl 14);
 const IOCTL_CE_USERDEFINEDINTERRUPTHOOK = (IOCTL_UNKNOWN_BASE shl 16) or ($082f shl 2) or (METHOD_BUFFERED ) or (FILE_RW_ACCESS shl 14);
@@ -2825,9 +2826,10 @@ var
 
   cpuid: integer;
   fc: dword;
-  XOR_MASK_1: qword;
-  XOR_MASK_2: dword;
-  XOR_MASK_3: qword;
+  runtimePassword1: qword;
+  runtimePassword2: dword;
+  runtimePassword3: qword;
+  runtimeVersion: dword;
 begin
 
 
@@ -2835,17 +2837,10 @@ begin
   begin
     Outputdebugstring('LaunchDBVM');
 
-    // OBFUSCATED CUSTOM PASSWORDS - same as DBVM but protected from memory scanning  
-    XOR_MASK_1 := $DEADBEEFCAFEBABE;
-    XOR_MASK_2 := $1337C0DE;
-    XOR_MASK_3 := $FEEDFACE13377331;
-    
-    // Real passwords: $13371337DEADC0DE, $BEEF, $CAFEBABE13371337
-    vmx_password1 := $CD9AAD4814537A60 xor XOR_MASK_1;  // Different length (64-bit)
-    vmx_password2 := $1337BF31 xor XOR_MASK_2;          // Much shorter (16-bit) 
-    vmx_password3 := $3413407000006006 xor XOR_MASK_3;  // Custom pattern
-    
-    OutputDebugString('Set CE to use protected custom passwords');
+    runtimePassword1 := 0;
+    runtimePassword2 := 0;
+    runtimePassword3 := 0;
+    OutputDebugString('Will request DBVM runtime passwords after launch');
 
     if parameters<>nil then
     begin
@@ -2898,10 +2893,24 @@ begin
       exit;
     end;
 
-    // ANTI-HOOK HANDSHAKE: Use direct VMCALL with obfuscated custom passwords  
-    configure_vmx(vmx_password1, vmx_password2, vmx_password3);
+    if not dbvm_get_runtime_passwords(runtimePassword1, runtimePassword2, runtimePassword3) then
+    begin
+      OutputDebugString('Failed to retrieve DBVM runtime passwords');
+      exit;
+    end;
+
+    vmx_password1 := runtimePassword1;
+    vmx_password2 := runtimePassword2;
+    vmx_password3 := runtimePassword3;
+
+    OutputDebugString('DBVM runtime passwords synchronized');
+
+    // Refresh version and inform the driver that VMX operations are available
+    runtimeVersion := dbvm_version;
+    OutputDebugString(format('DBVM version %.8x', [runtimeVersion]));
+    configure_vmx_kernel;
     
-    OutputDebugString('DBVM loaded with protected custom passwords');
+    OutputDebugString('DBVM runtime handshake completed');
 
     if parameters<>nil then
     begin

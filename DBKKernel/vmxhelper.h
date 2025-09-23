@@ -34,6 +34,7 @@
 
 //dbvm v7+
 #define VMCALL_SWITCH_TO_KERNELMODE 30
+#define VMCALL_GETRUNTIMEPASSWORDS 102
 
 #define VMCALL_DISABLE_DATAPAGEFAULTS 31
 #define VMCALL_ENABLE_DATAPAGEFAULTS 32
@@ -285,6 +286,7 @@ typedef struct
 unsigned int vmcall(void *vmcallinfo, unsigned int level1pass);
 
 unsigned int vmx_getversion();
+int vmx_sync_passwords_from_dbvm(void);
 unsigned int vmx_getRealCR0();
 UINT_PTR vmx_getRealCR3();
 unsigned int vmx_getRealCR4();

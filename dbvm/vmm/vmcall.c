@@ -942,6 +942,11 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
   switch (vmcall_instruction[2])
   {
     case VMCALL_GETVERSION: //get version
+      if ((vmregisters->cs & 3) != 0)
+      {
+        vmregisters->rax = 0;
+        break;
+      }
       //sendstring("Version request\n\r");
       // Return real version only when proper passwords are provided. Probes get 0.
       if ((vmregisters->rdx==Password1) && (vmregisters->rcx==Password3) && (vmcall_instruction[1]==Password2))
@@ -954,6 +959,27 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
         vmregisters->rax=0;
       break;
 
+    case VMCALL_GETRUNTIMEPASSWORDS: //retrieve current password triple
+    {
+      typedef struct
+      {
+        VMCALL_BASIC vmcall;
+        QWORD Password1;
+        DWORD Password2;
+        QWORD Password3;
+      } __attribute__((__packed__)) *PVMCALL_GETRUNTIMEPASSWORDS_PARAM;
+      PVMCALL_GETRUNTIMEPASSWORDS_PARAM p = (PVMCALL_GETRUNTIMEPASSWORDS_PARAM)vmcall_instruction;
+      if ((vmregisters->cs & 3) != 0)
+      {
+        vmregisters->rax = 1;
+        break;
+      }
+      p->Password1 = Password1;
+      p->Password2 = Password2;
+      p->Password3 = Password3;
+      vmregisters->rax = 0;
+      break;
+    }
     case VMCALL_CHANGEPASSWORD: //change password
     {
       typedef struct
@@ -2417,7 +2443,7 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     ULONG *peek=(ULONG *)mapVMmemory(currentcpuinfo, vmregisters->rax, 12, &premap_error, &premap_pf);
     if ((premap_error==0) && (peek))
     {
-      if (peek[2]!=VMCALL_GETVERSION)
+      if ((peek[2]!=VMCALL_GETVERSION) && (peek[2]!=VMCALL_GETRUNTIMEPASSWORDS))
       {
         if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
         {

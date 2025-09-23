@@ -314,15 +314,23 @@ void vmm_entry(void)
   QWORD cpu_entropy = (cpuid_a << 32) | cpuid_b;
   QWORD system_entropy = base_entropy ^ cpu_entropy ^ 0x133713371337DEADULL;
   
-  // 1. STATIC PASSWORDS WITH XOR OBFUSCATION (user-defined)
-  const QWORD XOR_MASK_1 = 0xDEADBEEFCAFEBABEULL;
-  const QWORD XOR_MASK_2 = 0x1337C0DE;
-  const QWORD XOR_MASK_3 = 0xFEEDFACE13377331ULL;
-  
-  // Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
-  Password1 = 0xCD9AAD4814537A60ULL ^ XOR_MASK_1;  // Different length (64-bit)
-  Password2 = 0x1337BF31 ^ (DWORD)XOR_MASK_2;      // Much shorter (16-bit) 
-  Password3 = 0x3413407000006006ULL ^ XOR_MASK_3;  // Custom pattern
+  // 1. RUNTIME PASSWORD SEEDING: derive credentials from hardware entropy
+  QWORD entropy_mix = _rdtsc() ^ (system_entropy >> 17);
+  QWORD extra_entropy = readMSRSafe(0x1B) ^ (cpu_entropy << 11);
+
+  QWORD mix1_base = system_entropy ^ extra_entropy;
+  QWORD mix1 = ((mix1_base << 23) | (mix1_base >> (64 - 23))) ^ 0xC837F4A5D1B2C3E4ULL;
+  QWORD mix2_base = entropy_mix + 0x9E3779B97F4A7C15ULL;
+  QWORD mix2 = ((mix2_base << 9) | (mix2_base >> (64 - 9)));
+
+  Password1 = (mix1 | 0x100000000ULL) ^ mix2;
+  Password2 = (DWORD)(((system_entropy >> 24) ^ (entropy_mix << 5) ^ 0xBADA5511) & 0xFFFFFFFF);
+  if (Password2 == 0)
+    Password2 = 0xC0DEBEEF;
+
+  QWORD mix3_base = (Password1 << 7) ^ system_entropy ^ extra_entropy ^ 0xA5F0C3D2B4971865ULL;
+  Password3 = (mix3_base << 19) | (mix3_base >> (64 - 19));
+  Password3 |= 0x100000000ULL;
   
   // 2. ANTI-PEB/TEB DETECTION: Randomize system structure corruption patterns
   // These replace the fixed signatures Hyperion looks for

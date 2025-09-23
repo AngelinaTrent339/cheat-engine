@@ -1,4 +1,4 @@
-﻿unit vmxfunctions;
+unit vmxfunctions;
 
 interface
 
@@ -33,6 +33,7 @@ const
   VMCALL_INT3REDIRECTED=25;
   VMCALL_READMSR=26;
   VMCALL_WRITEMSR=27;
+  VMCALL_GETRUNTIMEPASSWORDS=102;
 
   VMCALL_SWITCH_TO_KERNELMODE=30;
 
@@ -475,6 +476,7 @@ type
 
 
 function dbvm_version: dword; stdcall;
+function dbvm_get_runtime_passwords(var password1: QWORD; var password2: DWORD; var password3: QWORD): BOOL; stdcall;
 function dbvm_changepassword(password1:Qword; password2: dword; password3: Qword): DWORD; stdcall;
 function dbvm_changeselectors(cs,ss,ds,es,fs,gs: dword): DWORD; stdcall;
 function dbvm_restore_interrupts: DWORD; stdcall;
@@ -1100,6 +1102,27 @@ begin
       result:=0;
   except
     result:=0;
+  end;
+end;
+
+function dbvm_get_runtime_passwords(var password1: QWORD; var password2: DWORD; var password3: QWORD): BOOL; stdcall;
+var
+  outbuf: packed record
+    Password1: QWORD;
+    Password2: DWORD;
+    Password3: QWORD;
+  end;
+  returned: DWORD;
+begin
+  Result:=False;
+  if hdevice=INVALID_HANDLE_VALUE then exit;
+  returned:=0;
+  if DeviceIoControl(hdevice, IOCTL_CE_DBVM_GETPASSWORDS, nil, 0, @outbuf, sizeof(outbuf), returned, nil) then
+  begin
+    password1:=outbuf.Password1;
+    password2:=outbuf.Password2;
+    password3:=outbuf.Password3;
+    Result:=True;
   end;
 end;
 

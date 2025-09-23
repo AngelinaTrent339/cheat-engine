@@ -2156,6 +2156,43 @@ NTSTATUS DispatchIoctl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 			}
 			
 
+		case IOCTL_CE_DBVM_GETPASSWORDS:
+			{
+#pragma pack(1)
+				struct output
+				{
+					QWORD Password1;
+					ULONG Password2;
+					QWORD Password3;
+				} *pout;
+#pragma pack()
+				DbgPrint("IOCTL_CE_DBVM_GETPASSWORDS called\n");
+				if (irpStack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(*pout))
+				{
+					ntStatus = STATUS_BUFFER_TOO_SMALL;
+					Irp->IoStatus.Information = sizeof(*pout);
+					break;
+				}
+				pout = (void*)Irp->AssociatedIrp.SystemBuffer;
+				if ((vmx_password1 == 0) || (vmx_password3 == 0))
+				{
+					int syncStatus = vmx_sync_passwords_from_dbvm();
+					if (syncStatus != STATUS_SUCCESS)
+					{
+						DbgPrint("IOCTL_CE_DBVM_GETPASSWORDS: sync failed (%x)\n", syncStatus);
+						ntStatus = STATUS_UNSUCCESSFUL;
+						Irp->IoStatus.Information = 0;
+						break;
+					}
+				}
+				pout->Password1 = vmx_password1;
+				pout->Password2 = vmx_password2;
+				pout->Password3 = vmx_password3;
+				Irp->IoStatus.Information = sizeof(*pout);
+				ntStatus = STATUS_SUCCESS;
+				break;
+			}
+
 		case IOCTL_CE_VMXCONFIG:
 			{
 #pragma pack(1)

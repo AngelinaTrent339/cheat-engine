@@ -283,17 +283,12 @@ Runs at passive mode
 
 	vmm = MmMapLockedPagesSpecifyCache(DBVMMDL, KernelMode, MmCached, NULL, FALSE, 0);
 	
-	// OBFUSCATED CUSTOM PASSWORDS - same as DBVM but protected from memory scanning
-	const QWORD XOR_MASK_1 = 0xDEADBEEFCAFEBABEULL;
-	const QWORD XOR_MASK_2 = 0x1337C0DE;
-	const QWORD XOR_MASK_3 = 0xFEEDFACE13377331ULL;
+	// Runtime passwords will be requested from DBVM after launch
+	vmx_password1 = 0;
+	vmx_password2 = 0;
+	vmx_password3 = 0;
+	DbgPrint("initializeDBVM will request runtime passwords from DBVM\n");
 	
-	// Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
-	vmx_password1 = 0xCD9AAD4814537A60ULL ^ XOR_MASK_1;  // Different length (64-bit)
-	vmx_password2 = 0x1337BF31 ^ (DWORD)XOR_MASK_2;      // Much shorter (16-bit) 
-    vmx_password3 = 0x3413407000006006ULL ^ XOR_MASK_3;  // Custom pattern
-	
-	DbgPrint("initializeDBVM using protected custom passwords\n");
 
 
 	if (vmm)
@@ -660,8 +655,6 @@ Runs at passive mode
 			}
 			ZwClose(dbvmimghandle);
 
-			// No password patching needed - DBVM uses same obfuscated custom passwords
-
 			DbgPrint("Opened and processed: %S\n", filename.Buffer);
 		}
 		else
@@ -1018,6 +1011,13 @@ __in_opt PVOID SystemArgument2
 	DbgPrint("vmxoffload_dpc: CPU %d\n", c);
 	KeAcquireSpinLockAtDpcLevel(&LoadedOSSpinLock);
 	vmxoffload();
+	if ((vmx_password1 == 0) || (vmx_password3 == 0))
+	{
+		int syncStatus = vmx_sync_passwords_from_dbvm();
+		if (syncStatus != STATUS_SUCCESS)
+			DbgPrint("vmxoffload_dpc: failed to synchronize DBVM passwords (%x)\n", syncStatus);
+	}
+
 
 	//still here so very likely DBVM is loaded
 	if (SystemArgument1)

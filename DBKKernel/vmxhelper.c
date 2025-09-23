@@ -62,6 +62,43 @@ int vmx_hasredirectedint1()
 	return (int)dovmcall(&vmcallinfo);
 }
 
+int vmx_sync_passwords_from_dbvm(void)
+{
+	struct
+	{
+		unsigned int structsize;
+		unsigned int level2pass;
+		unsigned int command;
+		UINT64 Password1;
+		unsigned int Password2;
+		UINT64 Password3;
+	} vmcallinfo;
+	UINT_PTR status;
+	DbgPrint("vmx_sync_passwords_from_dbvm()\n");
+	vmcallinfo.structsize=sizeof(vmcallinfo);
+	vmcallinfo.level2pass=0;
+	vmcallinfo.command=VMCALL_GETRUNTIMEPASSWORDS;
+	vmcallinfo.Password1=0;
+	vmcallinfo.Password2=0;
+	vmcallinfo.Password3=0;
+	status=dovmcall(&vmcallinfo);
+	if (status==0)
+	{
+		if ((vmcallinfo.Password1==0) || (vmcallinfo.Password3==0))
+		{
+			DbgPrint("vmx_sync_passwords_from_dbvm: invalid response\n");
+			return STATUS_UNSUCCESSFUL;
+		}
+		vmx_password1=vmcallinfo.Password1;
+		vmx_password2=vmcallinfo.Password2;
+		vmx_password3=vmcallinfo.Password3;
+		DbgPrint("vmx_sync_passwords_from_dbvm: updated passwords %p-%x-%p\n", (void*)vmx_password1, vmx_password2, (void*)vmx_password3);
+		return STATUS_SUCCESS;
+	}
+	DbgPrint("vmx_sync_passwords_from_dbvm: vmcall failed with %p\n", (void*)status);
+	return (int)status;
+}
+
 unsigned int vmx_getversion()
 /*
 This will either raise a unhandled opcode exception, or return the used dbvm version
