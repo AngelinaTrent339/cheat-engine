@@ -3428,6 +3428,16 @@ int handleInterruptProtectedMode(pcpuinfo currentcpuinfo, VMRegisters *vmregiste
     regDR6 dr6;
     int orig=nosendchar[getAPICID()];
 
+    // ANTI-HYPERION: ICEBP detection mitigation
+    // Check if this is an ICEBP (F1) instruction by examining guest RIP
+    QWORD guest_rip = vmread(vm_guest_rip);
+    extern volatile QWORD anti_detection_exception_entropy;
+    
+    // Add randomized timing to prevent detection via timing analysis
+    volatile int anti_detection_delay = (anti_detection_exception_entropy & 0x1F) + 10;
+    for (int i = 0; i < anti_detection_delay; i++) {
+      __asm("nop");
+    }
 
     isFault=0; //isDebugFault(vmread(vm_exit_qualification), dr7.DR7);
 

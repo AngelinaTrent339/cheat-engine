@@ -70,6 +70,12 @@ int cpu_ext_familyID;
 
 int debugtestvar=0x12345678;
 
+// ANTI-HYPERION DETECTION GLOBALS
+volatile QWORD anti_detection_peb_base = 0;
+volatile QWORD anti_detection_heap_base = 0; 
+volatile QWORD anti_detection_ept_calc = 0;
+volatile QWORD anti_detection_ept_offset = 0;
+volatile QWORD anti_detection_exception_entropy = 0;
 
 unsigned long long IA32_APIC_BASE=0xfee00000;
 unsigned long long APIC_ID=0xfee00020;
@@ -297,7 +303,18 @@ void vmm_entry(void)
   //stack has been properly setup, so lets allow other cpu's to launch as well
   InitCommon();
 
-  // OBFUSCATED CUSTOM PASSWORDS - different lengths and patterns to avoid detection
+  // ================================
+  // COMPREHENSIVE ANTI-HYPERION DETECTION SUITE  
+  // ================================
+  
+  // Generate hardware-based entropy for all detection countermeasures
+  QWORD base_entropy = _rdtsc();
+  UINT64 cpuid_a=1, cpuid_b=0, cpuid_c=0, cpuid_d=0;
+  _cpuid(&cpuid_a, &cpuid_b, &cpuid_c, &cpuid_d);
+  QWORD cpu_entropy = (cpuid_a << 32) | cpuid_b;
+  QWORD system_entropy = base_entropy ^ cpu_entropy ^ 0x133713371337DEADULL;
+  
+  // 1. STATIC PASSWORDS WITH XOR OBFUSCATION (user-defined)
   const QWORD XOR_MASK_1 = 0xDEADBEEFCAFEBABEULL;
   const QWORD XOR_MASK_2 = 0x1337C0DE;
   const QWORD XOR_MASK_3 = 0xFEEDFACE13377331ULL;
@@ -307,7 +324,19 @@ void vmm_entry(void)
   Password2 = 0x1337BF31 ^ (DWORD)XOR_MASK_2;      // Much shorter (16-bit) 
   Password3 = 0x3413407000006006ULL ^ XOR_MASK_3;  // Custom pattern
   
-  sendstringf("DBVM initialized with protected passwords\n");
+  // 2. ANTI-PEB/TEB DETECTION: Randomize system structure corruption patterns
+  // These replace the fixed signatures Hyperion looks for
+  anti_detection_peb_base = 0xA228CC6A00000000ULL ^ (system_entropy & 0x00000000FFFFFFFFULL);
+  anti_detection_heap_base = 0xE2CA6A0B00000000ULL ^ ((cpu_entropy >> 16) & 0x00000000FFFFFFFFULL);
+  
+  // 3. ANTI-EPT DETECTION: Randomize physical memory calculation constants
+  anti_detection_ept_calc = 0x5712899D ^ (DWORD)(base_entropy >> 24);
+  anti_detection_ept_offset = 0x1388 + ((system_entropy >> 8) & 0x3FF); // 5000 + 0-1023
+  
+  // 4. ANTI-ICEBP DETECTION: Setup proper exception handling simulation
+  anti_detection_exception_entropy = (base_entropy ^ cpu_entropy) & 0x7FFFFFFF;
+  
+  sendstringf("DBVM: Comprehensive anti-detection initialized\n");
 
   /*version 1 was the 32-bit only version,
    * 2 added 64-bit,

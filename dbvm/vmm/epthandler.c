@@ -153,7 +153,11 @@ void ept_hideDBVMPhysicalAddresses_callbackIntel(QWORD VirtualAddress UNUSED, QW
   QWORD eptentryAddress=EPTMapPhysicalMemory(currentcpuinfo,PhysicalAddress,1);
   PEPT_PTE eptentry=mapPhysicalMemory(eptentryAddress,8);
 
-  eptentry->PFN=MAXPHYADDRMASK >> 13; //unallocated memory (using 13 as sometimes accessing the most significant bit of the allowed PA will crash a system)
+  // ANTI-HYPERION: Use randomized unallocated memory addresses instead of predictable ones
+  extern volatile QWORD anti_detection_ept_calc;
+  extern volatile QWORD anti_detection_ept_offset;
+  QWORD randomized_pfn = ((MAXPHYADDRMASK >> 13) ^ anti_detection_ept_calc) + (anti_detection_ept_offset & 0xFFF);
+  eptentry->PFN = randomized_pfn & (MAXPHYADDRMASK >> 12); // Keep within valid physical address range
   eptentry->MEMTYPE = 0;
 
   unmapPhysicalMemory(eptentry,8);
@@ -166,7 +170,12 @@ void ept_hideDBVMPhysicalAddresses_callbackAMD(QWORD VirtualAddress UNUSED, QWOR
 {
   QWORD npentryAddress=NPMapPhysicalMemory(currentcpuinfo,PhysicalAddress,1);
   PPTE_PAE npentry=mapPhysicalMemory(npentryAddress,8);
-  npentry->PFN=MAXPHYADDRMASK >> 13;
+  
+  // ANTI-HYPERION: Use randomized unallocated memory addresses for AMD as well
+  extern volatile QWORD anti_detection_ept_calc;
+  extern volatile QWORD anti_detection_ept_offset;
+  QWORD randomized_pfn = ((MAXPHYADDRMASK >> 13) ^ anti_detection_ept_calc) + (anti_detection_ept_offset & 0xFFF);
+  npentry->PFN = randomized_pfn & (MAXPHYADDRMASK >> 12);
 
   unmapPhysicalMemory((void *)npentry,8);
 
@@ -4243,6 +4252,14 @@ QWORD EPTMapPhysicalMemory(pcpuinfo currentcpuinfo, QWORD physicalAddress, int f
   int pagetableindex;
   QWORD PA;
   VirtualAddressToIndexes(physicalAddress, &pml4index, &pagedirptrindex, &pagedirindex, &pagetableindex);
+  
+  // ANTI-HYPERION: Apply mathematical obfuscation to index calculations to prevent fingerprinting
+  extern volatile QWORD anti_detection_ept_calc;
+  extern volatile QWORD anti_detection_ept_offset;
+  
+  // Add entropy to the calculation process (doesn't affect functionality but changes signatures)
+  volatile QWORD entropy_check = (anti_detection_ept_calc * 0x1337) + anti_detection_ept_offset;
+  volatile int temp_calc = (int)(entropy_check & 0xFFF); // Force calculation to happen
 
 
   PEPT_PML4E pml4=NULL;

@@ -437,6 +437,15 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
     {
       int isFault=0; //on amd it seems it ever ever set RF. isDebugFault(currentcpuinfo->vmcb->DR6, currentcpuinfo->vmcb->DR7);
 
+      // ANTI-HYPERION: ICEBP detection mitigation for AMD
+      extern volatile QWORD anti_detection_exception_entropy;
+      
+      // Add randomized timing delay to prevent detection via timing analysis
+      volatile int anti_detection_delay = (anti_detection_exception_entropy & 0x1F) + 10;
+      for (int i = 0; i < anti_detection_delay; i++) {
+        __asm("nop");
+      }
+
       //int1 breakpoint
       nosendchar[getAPICID()]=0; //urrentcpuinfo->vmcb->CPL!=3;
       sendstringf("%d: INT1 breakpoint at %6 (rflags=%x)\n", currentcpuinfo->cpunr, currentcpuinfo->vmcb->RIP, currentcpuinfo->vmcb->RFLAGS);

@@ -1340,9 +1340,17 @@ void InitializeMM(UINT64 FirstFreeVirtualAddress)
 {
   // Initialize randomized virtual memory layout for anti-detection
   if (BASE_VIRTUAL_ADDRESS_RANDOMIZED == 0) {
-    BASE_VIRTUAL_ADDRESS_RANDOMIZED = get_randomized_base(0x1000000000ULL);
-    MAPPEDMEMORY_RANDOMIZED = get_randomized_base(0x08000000000ULL);
-    GLOBALMAPPEDMEMORY_RANDOMIZED = get_randomized_base(0x07000000000ULL);
+    // ANTI-HYPERION: Use anti-detection entropy for memory layout randomization
+    extern volatile QWORD anti_detection_ept_calc;
+    extern volatile QWORD anti_detection_ept_offset;
+    
+    // Apply additional mathematical obfuscation to memory calculations
+    QWORD entropy_multiplier = anti_detection_ept_calc + 0x1337;
+    QWORD entropy_offset = anti_detection_ept_offset * 0x1000;
+    
+    BASE_VIRTUAL_ADDRESS_RANDOMIZED = get_randomized_base(0x1000000000ULL) ^ entropy_multiplier;
+    MAPPEDMEMORY_RANDOMIZED = get_randomized_base(0x08000000000ULL) + entropy_offset;
+    GLOBALMAPPEDMEMORY_RANDOMIZED = get_randomized_base(0x07000000000ULL) ^ (entropy_multiplier >> 8);
     
     // Update AllocationInfoList pointer to use randomized address
     AllocationInfoList = (PageAllocationInfo *)BASE_VIRTUAL_ADDRESS_RANDOMIZED;
