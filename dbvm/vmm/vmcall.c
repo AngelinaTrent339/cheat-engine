@@ -2187,24 +2187,19 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
     case VMCALL_GETBROKENTHREADENTRYSHORT:
     {
-      typedef struct
-      {
-        VMCALL_BASIC vmcall;
-        int id;
-        int Watchid;
-        int Status;
-        DWORD CS;
-        QWORD RIP;
-        QWORD CR3;
-        QWORD FSBASE;
-        QWORD GSBASE;
-        QWORD GSBASE_KERNEL;
-        QWORD Heartbeat;
+      // Skip the complex struct typedef and access data directly from vmcall_instruction
+      int id = vmcall_instruction[3];
+      int *watchid_ptr = (int*)&vmcall_instruction[4];
+      int *status_ptr = (int*)&vmcall_instruction[5];
+      DWORD *cs_ptr = (DWORD*)&vmcall_instruction[6];
+      QWORD *rip_ptr = (QWORD*)&vmcall_instruction[7]; // Note: QWORD spans 2 ULONG slots
+      QWORD *cr3_ptr = (QWORD*)&vmcall_instruction[9];
+      QWORD *fsbase_ptr = (QWORD*)&vmcall_instruction[11];
+      QWORD *gsbase_ptr = (QWORD*)&vmcall_instruction[13];
+      QWORD *gsbase_kernel_ptr = (QWORD*)&vmcall_instruction[15];
+      QWORD *heartbeat_ptr = (QWORD*)&vmcall_instruction[17];
 
-      }  __attribute__((__packed__)) *PGETBROKENTHREADENTRYSHORT_PARAM;
-      PGETBROKENTHREADENTRYSHORT_PARAM p=(PGETBROKENTHREADENTRYSHORT_PARAM)vmcall_instruction;
-
-      vmregisters->rax=ept_getBrokenThreadEntryShort(p->id, &p->Watchid, &p->Status, &p->CR3, &p->FSBASE, &p->GSBASE, &p->GSBASE_KERNEL, &p->CS, &p->RIP, &p->Heartbeat);
+      vmregisters->rax=ept_getBrokenThreadEntryShort(id, watchid_ptr, status_ptr, cr3_ptr, fsbase_ptr, gsbase_ptr, gsbase_kernel_ptr, cs_ptr, rip_ptr, heartbeat_ptr);
       break;
     }
 
@@ -2232,17 +2227,13 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
     case VMCALL_RESUMEBROKENTHREAD:
     {
-      typedef struct
-      {
-        VMCALL_BASIC vmcall;
-        DWORD id;
-        DWORD continueMethod;
-      }  __attribute__((__packed__)) *PVMCALL_RESUMEBROKENTHREAD_PARAM;
-      PVMCALL_RESUMEBROKENTHREAD_PARAM p=(PVMCALL_RESUMEBROKENTHREAD_PARAM)vmcall_instruction;
+      // Skip the complex struct typedef and access data directly from vmcall_instruction
+      DWORD id = vmcall_instruction[3];
+      DWORD continueMethod = vmcall_instruction[4];
 
       nosendchar[getAPICID()]=0;
-      sendstringf("VMCALL_RESUMEBROKENTHREAD %d\n", p->id);
-      vmregisters->rax=ept_resumeBrokenThread(p->id, p->continueMethod);
+      sendstringf("VMCALL_RESUMEBROKENTHREAD %d\n", id);
+      vmregisters->rax=ept_resumeBrokenThread(id, continueMethod);
       break;
     }
 
