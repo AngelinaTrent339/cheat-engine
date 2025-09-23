@@ -1087,25 +1087,35 @@ end;
 
 
 function dbvm_version: dword; stdcall;
-var vmcallinfo: record
-  structsize: dword;
-  level2pass: dword;
-  command: dword;
-end;
+var
+  vmcallinfo: record
+    structsize: dword;
+    level2pass: dword;
+    command: dword;
+  end;
+  rawresult: dword;
+  expectedMask: dword;
 begin
 
   //FALLBACK PASSWORD MECHANISM DISABLED
-
 
   vmcallinfo.structsize:=sizeof(vmcallinfo);
   vmcallinfo.level2pass:=vmx_password2;
   vmcallinfo.command:=VMCALL_GETVERSION;
   try
-    result:=vmcall(@vmcallinfo);
-    if (result shr 24)<>$da then
-      result:=0
-    else
+    rawresult:=vmcall(@vmcallinfo);
+    expectedMask:=dword((vmx_password1 xor vmx_password3) and qword($ff000000));
+    if expectedMask=0 then
+      expectedMask:=$da000000;
+
+    if (rawresult<>0) and ((rawresult and $ff000000)=expectedMask) then
+    begin
+      // Normalize the dynamic mask so existing version checks keep their 0xDA prefix
+      result:=(rawresult and $00ffffff) or $da000000;
       vmx_loaded:=true;
+    end
+    else
+      result:=0;
   except
     result:=0;
   end;
