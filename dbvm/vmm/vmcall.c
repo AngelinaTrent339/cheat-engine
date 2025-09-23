@@ -1,9 +1,10 @@
 #include "main.h"
 #include "vmpaging.h"
 #include "vmmhelper.h"
+#include "common.h"
+#include "eptstructs.h"
 #include "vmeventhandler.h"
 #include "osspecific.h"
-#include "common.h"
 #include "mm.h"
 #include "vmcall.h"
 #include "msrnames.h"
@@ -14,7 +15,6 @@
 
 #include "vbe3.h"
 #include "psod32.h"
-#include "eptstructs.h"
 #include "epthandler.h"
 #include "displaydebug.h"
 
@@ -2226,15 +2226,11 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
     case VMCALL_SETBROKENTHREADENTRYFULL:
     {
-      typedef struct
-      {
-        VMCALL_BASIC vmcall;
-        int id;
-        PageEventExtended entry;
-      }  __attribute__((__packed__)) *PGETBROKENTHREADENTRYFULL_PARAM;
-      PGETBROKENTHREADENTRYFULL_PARAM p=(PGETBROKENTHREADENTRYFULL_PARAM)vmcall_instruction;
-
-      vmregisters->rax=ept_setBrokenThreadEntryFull(p->id, &p->entry);
+      // Skip the complex struct typedef and access data directly from vmcall_instruction
+      int id = vmcall_instruction[3];
+      void *entry_ptr = (void*)&vmcall_instruction[4]; // PageEventExtended starts at offset 4 (after vmcall header + id)
+      
+      vmregisters->rax=ept_setBrokenThreadEntryFull(id, (PPageEventExtended)entry_ptr);
       break;
     }
 
