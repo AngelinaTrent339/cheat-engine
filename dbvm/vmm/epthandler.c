@@ -4258,7 +4258,7 @@ QWORD EPTMapPhysicalMemory(pcpuinfo currentcpuinfo, QWORD physicalAddress, int f
   extern volatile QWORD anti_detection_ept_offset;
   
   // Add entropy to the calculation process (doesn't affect functionality but changes signatures)
-  volatile QWORD entropy_check = (anti_detection_ept_calc * 0x1337) + anti_detection_ept_offset;
+  volatile QWORD entropy_check = ((anti_detection_ept_calc << 9) ^ (anti_detection_ept_offset << 3)) + (anti_detection_ept_calc ^ anti_detection_ept_offset);
   volatile int temp_calc = (int)(entropy_check & 0xFFF); // Force calculation to happen
 
 

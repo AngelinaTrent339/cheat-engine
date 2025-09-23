@@ -312,7 +312,7 @@ void vmm_entry(void)
   UINT64 cpuid_a=1, cpuid_b=0, cpuid_c=0, cpuid_d=0;
   _cpuid(&cpuid_a, &cpuid_b, &cpuid_c, &cpuid_d);
   QWORD cpu_entropy = (cpuid_a << 32) | cpuid_b;
-  QWORD system_entropy = base_entropy ^ cpu_entropy ^ 0x133713371337DEADULL;
+  QWORD system_entropy = (base_entropy ^ cpu_entropy) ^ ((base_entropy << 17) | (cpu_entropy >> 13));
   
   // 1. RUNTIME PASSWORD SEEDING: derive credentials from hardware entropy
   QWORD entropy_mix = _rdtsc() ^ (system_entropy >> 17);
@@ -334,12 +334,21 @@ void vmm_entry(void)
   
   // 2. ANTI-PEB/TEB DETECTION: Randomize system structure corruption patterns
   // These replace the fixed signatures Hyperion looks for
-  anti_detection_peb_base = 0xA228CC6A00000000ULL ^ (system_entropy & 0x00000000FFFFFFFFULL);
-  anti_detection_heap_base = 0xE2CA6A0B00000000ULL ^ ((cpu_entropy >> 16) & 0x00000000FFFFFFFFULL);
+  QWORD structure_seed = mix1 ^ (mix2 << 17);
+  QWORD heap_seed = mix2_base ^ (extra_entropy << 5);
+  QWORD offset_seed = mix3_base ^ (entropy_mix << 9);
+
+  anti_detection_peb_base = (structure_seed & 0xFFFFFFFF00000000ULL) | ((structure_seed >> 16) & 0x00000000FFFFFFFFULL);
+  anti_detection_heap_base = (heap_seed & 0xFFFFFFFF00000000ULL) | ((heap_seed >> 12) & 0x00000000FFFFFFFFULL);
   
   // 3. ANTI-EPT DETECTION: Randomize physical memory calculation constants
-  anti_detection_ept_calc = 0x5712899D ^ (DWORD)(base_entropy >> 24);
-  anti_detection_ept_offset = 0x1388 + ((system_entropy >> 8) & 0x3FF); // 5000 + 0-1023
+  anti_detection_ept_calc = (DWORD)((offset_seed >> 8) & 0xFFFFFFFFULL);
+  if (anti_detection_ept_calc == 0)
+    anti_detection_ept_calc = (DWORD)(((structure_seed ^ heap_seed) >> 5) | 1);
+
+  anti_detection_ept_offset = ((offset_seed >> 4) & 0x0FFF) + ((structure_seed >> 28) & 0x0FFF);
+  if (anti_detection_ept_offset == 0)
+    anti_detection_ept_offset = ((heap_seed >> 20) & 0x0FFF) + 1;
   
   // 4. ANTI-ICEBP DETECTION: Setup proper exception handling simulation
   anti_detection_exception_entropy = (base_entropy ^ cpu_entropy) & 0x7FFFFFFF;
