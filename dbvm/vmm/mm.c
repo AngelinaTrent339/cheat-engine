@@ -21,8 +21,13 @@ Just used for basic initialization allocation, frees shouldn't happen too often
  *
  */
 
+// Anti-detection: Use randomized virtual memory layout 
+// These will be initialized at runtime to prevent detection fingerprinting
+static QWORD BASE_VIRTUAL_ADDRESS_RANDOMIZED = 0;
+static QWORD MAPPEDMEMORY_RANDOMIZED = 0;
+static QWORD GLOBALMAPPEDMEMORY_RANDOMIZED = 0;
+
 // Randomize virtual memory layout to prevent detection fingerprinting
-// Use TSC-based entropy for base address randomization
 static QWORD get_randomized_base(QWORD base_hint) {
   QWORD entropy = _rdtsc();
   // Add 4GB-64GB of entropy while keeping alignment
@@ -30,20 +35,20 @@ static QWORD get_randomized_base(QWORD base_hint) {
   return (base_hint + random_offset) & 0xFFFFFFF000000000ULL;
 }
 
-#define BASE_VIRTUAL_ADDRESS get_randomized_base(0x1000000000ULL)
+#define BASE_VIRTUAL_ADDRESS BASE_VIRTUAL_ADDRESS_RANDOMIZED
 
 //MAPPEDMEMORY is the range of virtual memory allocated for individual CPU threads mapping  
-#define MAPPEDMEMORY get_randomized_base(0x08000000000ULL)
+#define MAPPEDMEMORY MAPPEDMEMORY_RANDOMIZED
 
 //GLOBALMAPPEDMEMORY is the virtual memory allocated for the whole system for mapping
-#define GLOBALMAPPEDMEMORY get_randomized_base(0x07000000000ULL)
+#define GLOBALMAPPEDMEMORY GLOBALMAPPEDMEMORY_RANDOMIZED
 
 //for virtual memory allocs
 criticalSection AllocCS={.name="AllocCS", .debuglevel=2};
 criticalSection GlobalMapCS={.name="GlobalMapCS", .debuglevel=2};
 
 
-PageAllocationInfo *AllocationInfoList=(PageAllocationInfo *)BASE_VIRTUAL_ADDRESS;
+PageAllocationInfo *AllocationInfoList=NULL; // Will be initialized at runtime with randomized address
 int PhysicalPageListSize=1; //size in pages
 int PhysicalPageListMaxSize=64; //if the size goes over this, reallocate the list
 
@@ -56,18 +61,11 @@ int MappedAllocationInfoListSize=0; //size in pages
 int MappedAllocationInfoListMax=0; //if the size goes over this, reallocate the list
 */
 
-//host cr3 is mapped with randomized high addresses to prevent detection fingerprinting:
-// Use entropy for table mapping randomization while maintaining kernel space
-static QWORD get_randomized_high_addr(QWORD base_addr) {
-  QWORD entropy = _rdtsc() >> 12; // Use TSC for entropy
-  QWORD mask = 0x7F000000ULL; // 2GB range for randomization
-  return (base_addr & 0xFFFFFF8000000000ULL) | ((entropy & mask) << 3);
-}
-
-PPDPTE_PAE        pml4table=(PPDPTE_PAE)get_randomized_high_addr(0xfffffffffffff000ULL);
-PPDPTE_PAE pagedirptrtables=(PPDPTE_PAE)get_randomized_high_addr(0xffffffffffe00000ULL);
-PPDE_PAE      pagedirtables=  (PPDE_PAE)get_randomized_high_addr(0xffffffffc0000000ULL);
-PPTE_PAE         pagetables=  (PPTE_PAE)get_randomized_high_addr(0xffffff8000000000ULL);
+//host cr3 is mapped at fixed addresses (anti-detection randomization removed to fix compilation):
+PPDPTE_PAE        pml4table=(PPDPTE_PAE)0xfffffffffffff000ULL;
+PPDPTE_PAE pagedirptrtables=(PPDPTE_PAE)0xffffffffffe00000ULL;
+PPDE_PAE      pagedirtables=  (PPDE_PAE)0xffffffffc0000000ULL;
+PPTE_PAE         pagetables=  (PPTE_PAE)0xffffff8000000000ULL;
 
 
 
@@ -1340,6 +1338,16 @@ void *malloc(size_t size)
 
 void InitializeMM(UINT64 FirstFreeVirtualAddress)
 {
+  // Initialize randomized virtual memory layout for anti-detection
+  if (BASE_VIRTUAL_ADDRESS_RANDOMIZED == 0) {
+    BASE_VIRTUAL_ADDRESS_RANDOMIZED = get_randomized_base(0x1000000000ULL);
+    MAPPEDMEMORY_RANDOMIZED = get_randomized_base(0x08000000000ULL);
+    GLOBALMAPPEDMEMORY_RANDOMIZED = get_randomized_base(0x07000000000ULL);
+    
+    // Update AllocationInfoList pointer to use randomized address
+    AllocationInfoList = (PageAllocationInfo *)BASE_VIRTUAL_ADDRESS_RANDOMIZED;
+  }
+
   int pml4index;
   int pagedirptrindex;
   int pagedirindex;
