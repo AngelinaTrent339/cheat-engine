@@ -2210,17 +2210,13 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
     case VMCALL_GETBROKENTHREADENTRYFULL:
     {
-      typedef struct
-      {
-        VMCALL_BASIC vmcall;
-        int id;
-        int watchid;
-        int status;
-        PageEventExtended entry;
-      }  __attribute__((__packed__)) *PGETBROKENTHREADENTRYFULL_PARAM;
-      PGETBROKENTHREADENTRYFULL_PARAM p=(PGETBROKENTHREADENTRYFULL_PARAM)vmcall_instruction;
-
-      vmregisters->rax=ept_getBrokenThreadEntryFull(p->id, &p->watchid,  &p->status, &p->entry);
+      // Skip the complex struct typedef and access data directly from vmcall_instruction
+      int id = vmcall_instruction[3];
+      int *watchid_ptr = (int*)&vmcall_instruction[4];
+      int *status_ptr = (int*)&vmcall_instruction[5]; 
+      void *entry_ptr = (void*)&vmcall_instruction[6]; // PageEventExtended starts at offset 6
+      
+      vmregisters->rax=ept_getBrokenThreadEntryFull(id, watchid_ptr, status_ptr, (PPageEventExtended)entry_ptr);
       break;
     }
 
