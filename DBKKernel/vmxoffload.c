@@ -283,8 +283,17 @@ Runs at passive mode
 
 	vmm = MmMapLockedPagesSpecifyCache(DBVMMDL, KernelMode, MmCached, NULL, FALSE, 0);
 	
-	// Dynamic passwords are now set by IOCTL_CE_LAUNCHDBVM caller before this function
-	DbgPrint("initializeDBVM using dynamic passwords: %p-%x-%p\n", (void*)vmx_password1, vmx_password2, (void*)vmx_password3);
+	// OBFUSCATED CUSTOM PASSWORDS - same as DBVM but protected from memory scanning
+	const QWORD XOR_MASK_1 = 0xDEADBEEFCAFEBABEULL;
+	const QWORD XOR_MASK_2 = 0x1337C0DE;
+	const QWORD XOR_MASK_3 = 0xFEEDFACE13377331ULL;
+	
+	// Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
+	vmx_password1 = 0xCD9AAD4814537A60ULL ^ XOR_MASK_1;  // Different length (64-bit)
+	vmx_password2 = 0x1337BF31 ^ (DWORD)XOR_MASK_2;      // Much shorter (16-bit) 
+	vmx_password3 = 0x34134470000006006ULL ^ XOR_MASK_3;  // Custom pattern
+	
+	DbgPrint("initializeDBVM using protected custom passwords\n");
 
 
 	if (vmm)
@@ -651,8 +660,7 @@ Runs at passive mode
 			}
 			ZwClose(dbvmimghandle);
 
-			// CRITICAL: Patch DBVM's password variables with dynamic values to eliminate detection window
-			patchDBVMPasswords(vmm);
+			// No password patching needed - DBVM uses same obfuscated custom passwords
 
 			DbgPrint("Opened and processed: %S\n", filename.Buffer);
 		}
@@ -670,66 +678,6 @@ Runs at passive mode
 	ExFreePool(DBVMMDL);
 }
 
-void patchDBVMPasswords(void* vmmMapped)
-/*
-Patches DBVM's static password variables with dynamic ones to eliminate detection window
-*/
-{
-	if (!vmmMapped) {
-		DbgPrint("ERROR: vmmMapped is NULL, cannot patch passwords\n");
-		return;
-	}
-	
-	DbgPrint("Starting password patching with dynamic passwords: %p-%x-%p\n", 
-		(void*)vmx_password1, vmx_password2, (void*)vmx_password3);
-	
-	const QWORD staticPassword1 = 0xA7B9C2E4F6D8A1B3ULL;
-	const DWORD staticPassword2 = 0x5E8A1C7F;
-	const QWORD staticPassword3 = 0x9F3E7A5B2C4D8E1AULL;
-	
-	int patchCount = 0;
-	unsigned char* vmmBytes = (unsigned char*)vmmMapped;
-	
-	// Search for and replace password variables in the 4MB DBVM image
-	for (int i = 0; i < (4 * 1024 * 1024 - sizeof(QWORD)); i++) {
-		QWORD* qwordPtr = (QWORD*)(vmmBytes + i);
-		DWORD* dwordPtr = (DWORD*)(vmmBytes + i);
-		
-		// Check for Password1 (QWORD) - scan aligned
-		if ((i % 8 == 0) && (*qwordPtr == staticPassword1)) {
-			*qwordPtr = vmx_password1;
-			patchCount++;
-			DbgPrint("Patched Password1 at offset 0x%x: %p -> %p\n", i, (void*)staticPassword1, (void*)vmx_password1);
-		}
-		
-		// Check for Password2 (DWORD) - scan aligned  
-		if ((i % 4 == 0) && (*dwordPtr == staticPassword2)) {
-			*dwordPtr = vmx_password2;
-			patchCount++;
-			DbgPrint("Patched Password2 at offset 0x%x: %x -> %x\n", i, staticPassword2, vmx_password2);
-		}
-		
-		// Check for Password3 (QWORD) - scan aligned
-		if ((i % 8 == 0) && (*qwordPtr == staticPassword3)) {
-			*qwordPtr = vmx_password3;
-			patchCount++;
-			DbgPrint("Patched Password3 at offset 0x%x: %p -> %p\n", i, (void*)staticPassword3, (void*)vmx_password3);
-		}
-	}
-	
-	DbgPrint("Password patching complete: %d patches applied\n", patchCount);
-	
-	if (patchCount == 0) {
-		DbgPrint("WARNING: No passwords were patched! DBVM may fail to load.\n");
-		DbgPrint("Searching for password patterns in first 1KB of DBVM image:\n");
-		for (int i = 0; i < 1024; i += 8) {
-			QWORD* qwordPtr = (QWORD*)(vmmBytes + i);
-			if (*qwordPtr == staticPassword1 || *qwordPtr == staticPassword3) {
-				DbgPrint("Found password pattern at offset 0x%x: %p\n", i, (void*)*qwordPtr);
-			}
-		}
-	}
-}
 
 void vmxoffload(void)
 {

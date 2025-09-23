@@ -921,28 +921,9 @@ NTSTATUS DispatchIoctl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 				{
 					UINT64 dbvmimgpath;	
 					DWORD32 cpuid;
-					QWORD password1;
-					DWORD password2;
-					QWORD password3;
 				} *pinp;
 				pinp=Irp->AssociatedIrp.SystemBuffer;
-				DbgPrint("=== IOCTL_CE_LAUNCHDBVM START ===\n");
-				DbgPrint("Received dynamic passwords: %p-%x-%p\n", 
-					(void*)pinp->password1, pinp->password2, (void*)pinp->password3);
-
-				// Validate passwords are not static defaults
-				if (pinp->password1 == 0xA7B9C2E4F6D8A1B3ULL || pinp->password3 == 0x9F3E7A5B2C4D8E1AULL || pinp->password2 == 0x5E8A1C7F) {
-					DbgPrint("ERROR: Received static passwords instead of dynamic ones!\n");
-					ntStatus = STATUS_INVALID_PARAMETER;
-					break;
-				}
-
-				// Set dynamic passwords BEFORE initializing DBVM to eliminate detection window
-				vmx_password1 = pinp->password1;
-				vmx_password2 = pinp->password2;
-				vmx_password3 = pinp->password3;
-				DbgPrint("Set kernel driver passwords to: %p-%x-%p\n", 
-					(void*)vmx_password1, vmx_password2, (void*)vmx_password3);
+				DbgPrint("IOCTL_CE_LAUNCHDBVM with obfuscated custom passwords\n");
 
 				initializeDBVM((PCWSTR)(UINT_PTR)pinp->dbvmimgpath);
 
@@ -954,8 +935,6 @@ NTSTATUS DispatchIoctl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 					forOneCpu((CCHAR)pinp->cpuid, vmxoffload_dpc, NULL, NULL, NULL, vmxoffload_override);
 
 				DbgPrint("Returned from vmxoffload()\n");
-				DbgPrint("=== IOCTL_CE_LAUNCHDBVM COMPLETE ===\n");
-				ntStatus = STATUS_SUCCESS;
 				break;
 			}
 			
@@ -2190,22 +2169,19 @@ NTSTATUS DispatchIoctl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 #pragma pack()
 				
 
-				DbgPrint("IOCTL_CE_VMXCONFIG called (passwords already set during DBVM loading)\n");	
+				DbgPrint("IOCTL_CE_VMXCONFIG called\n");	
 				ntStatus=STATUS_SUCCESS;
 
 				pinp=Irp->AssociatedIrp.SystemBuffer;
 
 				if (pinp->Virtualization_Enabled)
 				{
-					// Passwords were already set during IOCTL_CE_LAUNCHDBVM, but update if needed
-					if (pinp->Password1 != vmx_password1 || pinp->Password2 != vmx_password2 || pinp->Password3 != vmx_password3) {
-						vmx_password1=pinp->Password1;
-						vmx_password2=pinp->Password2;
-						vmx_password3=pinp->Password3;
-						DbgPrint("Updated passwords to: %p-%x-%p\n", (void*)vmx_password1, vmx_password2, (void*)vmx_password3);
-					} else {
-						DbgPrint("Passwords already match: %p-%x-%p\n", (void*)vmx_password1, vmx_password2, (void*)vmx_password3);
-					}
+					// Override with custom obfuscated passwords if different ones provided
+					vmx_password1=pinp->Password1;
+					vmx_password2=pinp->Password2;
+					vmx_password3=pinp->Password3;
+
+					DbgPrint("Updated to custom passwords: %p-%x-%p\n", (void*)vmx_password1, vmx_password2, (void*)vmx_password3);
 
 					__try
 					{

@@ -1,4 +1,4 @@
-unit vmxfunctions;
+﻿unit vmxfunctions;
 
 interface
 
@@ -573,7 +573,6 @@ procedure dbvm_ultimap2_hideRangeUsage;
 
 procedure configure_vmx(userpassword1: qword; userpassword2: dword; userpassword3: qword);
 procedure configure_vmx_kernel;
-procedure generateDynamicPasswords(out password1: qword; out password2: dword; out password3: qword);
 
 function ReadProcessMemoryWithCloakSupport(hProcess: THandle; lpBaseAddress, lpBuffer: Pointer; nSize: DWORD; var lpNumberOfBytesRead: PTRUINT): BOOL; stdcall;
 function WriteProcessMemoryWithCloakSupport(hProcess: THandle; lpBaseAddress, lpBuffer: Pointer; nSize: DWORD; var lpNumberOfBytesWritten: PTRUINT): BOOL; stdcall;
@@ -890,24 +889,6 @@ begin
   {$endif}
 end;
 
-// Generate dynamic passwords matching DBVM anti-detection algorithm
-procedure generateDynamicPasswords(out password1: qword; out password2: dword; out password3: qword);
-var
-  tsc_base, cpu_features: qword;
-  cpuid_result: TCPUIDResult;
-begin
-  // Get TSC and CPUID(1) values
-  tsc_base := getRDTSC();
-  cpuid_result := CPUID(1);
-  
-  // Combine CPUID results the same way as DBVM
-  cpu_features := (qword(cpuid_result.eax) shl 32) or cpuid_result.ebx;
-  
-  // Generate passwords using identical algorithm as DBVM
-  password1 := (tsc_base xor $1234567890ABCDEF) + cpu_features;
-  password2 := dword((cpu_features shr 16) xor $DEADBEEF);
-  password3 := (password1 shr 8) xor (cpu_features shl 4) xor $9876543210FEDCBA;
-end;
 
 {$IFDEF windows}
 function vmcallexceptiontest(ExceptionInfo: PEXCEPTION_POINTERS): LONG; stdcall;

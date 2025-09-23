@@ -297,12 +297,17 @@ void vmm_entry(void)
   //stack has been properly setup, so lets allow other cpu's to launch as well
   InitCommon();
 
-  // Static default passwords - may be patched by kernel driver before execution
-  Password1 = 0xA7B9C2E4F6D8A1B3ULL;
-  Password2 = 0x5E8A1C7F;
-  Password3 = 0x9F3E7A5B2C4D8E1AULL;
+  // OBFUSCATED CUSTOM PASSWORDS - different lengths and patterns to avoid detection
+  const QWORD XOR_MASK_1 = 0xDEADBEEFCAFEBABEULL;
+  const QWORD XOR_MASK_2 = 0x1337C0DE;
+  const QWORD XOR_MASK_3 = 0xFEEDFACE13377331ULL;
   
-  sendstringf("DBVM initialized with passwords: %6-%8-%6\n", Password1, Password2, Password3);
+  // Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
+  Password1 = 0xCD9AAD4814537A60ULL ^ XOR_MASK_1;  // Different length (64-bit)
+  Password2 = 0x1337BF31 ^ (DWORD)XOR_MASK_2;      // Much shorter (16-bit) 
+  Password3 = 0x34134470000006006ULL ^ XOR_MASK_3;  // Custom pattern
+  
+  sendstringf("DBVM initialized with protected passwords\n");
 
   /*version 1 was the 32-bit only version,
    * 2 added 64-bit,

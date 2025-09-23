@@ -3,7 +3,6 @@
 
 void cleanupDBVM();
 void initializeDBVM(PCWSTR dbvmimgpath);
-void patchDBVMPasswords(void* vmmMapped);
 void vmxoffload(void);
 
 void vmxoffload_override(CCHAR cpunr, PKDEFERRED_ROUTINE Dpc, PVOID DeferredContext, PVOID *SystemArgument1, PVOID *SystemArgument2);

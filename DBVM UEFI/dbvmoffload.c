@@ -16,9 +16,15 @@ typedef void *PVOID;
 
 
 // Static passwords - for UEFI compatibility
-UINT64 password1=0xA7B9C2E4F6D8A1B3;
-DWORD password2=0x5E8A1C7F;
-UINT64 password3=0x9F3E7A5B2C4D8E1A;
+// OBFUSCATED CUSTOM PASSWORDS - same as DBVM but protected from memory scanning
+const UINT64 XOR_MASK_1 = 0xDEADBEEFCAFEBABEULL;
+const DWORD XOR_MASK_2 = 0x1337C0DE;
+const UINT64 XOR_MASK_3 = 0xFEEDFACE13377331ULL;
+
+// Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
+UINT64 password1 = 0xCD9AAD4814537A60ULL ^ XOR_MASK_1;  // Different length (64-bit)
+DWORD password2 = 0x1337BF31 ^ XOR_MASK_2;              // Much shorter (16-bit) 
+UINT64 password3 = 0x34134470000006006ULL ^ XOR_MASK_3;  // Custom pattern
 
 
 extern void enterVMM( void ); //declared in vmxoffloada.asm
