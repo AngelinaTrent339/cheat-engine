@@ -4404,6 +4404,11 @@ int handleVMEvent_internal(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FX
       nosendchar[getAPICID()]=0;
       //sendstring("vmcall\n");
 
+      if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
+      {
+        return raiseInvalidOpcodeException(currentcpuinfo);
+      }
+
       result = handleVMCall(currentcpuinfo, vmregisters);
 
       //sendstringf("Returned from handleVMCall, result=%d\n\r",result);
@@ -4776,3 +4781,4 @@ int handleVMEvent(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE64 *f
   }
   return result;
 }
+

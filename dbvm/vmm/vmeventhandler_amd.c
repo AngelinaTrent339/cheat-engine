@@ -1381,6 +1381,12 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
       //dbvm callback for amd
       nosendchar[getAPICID()]=0;
      // sendstringf("%d: handleVMCall()", currentcpuinfo->cpunr);
+
+      if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
+      {
+        return raiseInvalidOpcodeException(currentcpuinfo);
+      }
+
       return handleVMCall(currentcpuinfo, vmregisters);
       break;
     }
@@ -1817,3 +1823,4 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
   //still here
   return 1;
 }
+
