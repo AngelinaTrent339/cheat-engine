@@ -1827,7 +1827,6 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (hasEPTsupport || hasNPsupport)
       {
-        PVMCALL_CLOAK_TRACEONBP_PARAM p=(PVMCALL_CLOAK_TRACEONBP_PARAM)vmcall_instruction;
 
         QWORD physicalAddress = *(QWORD*)&vmcall_instruction[3];
         DWORD flags = vmcall_instruction[5];
