@@ -1382,12 +1382,18 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
       nosendchar[getAPICID()]=0;
      // sendstringf("%d: handleVMCall()", currentcpuinfo->cpunr);
 
+      QWORD guestrip = currentcpuinfo->vmcb->RIP;
+      sendstringf("VMEXIT VMMCALL cpu=%d rip=%6 rax=%6 rdx=%6 rcx=%6\n", currentcpuinfo->cpunr, guestrip, vmregisters->rax, vmregisters->rdx, vmregisters->rcx);
+
       if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
       {
+        sendstringf("VMEXIT VMMCALL invalid password -> #UD\n");
         return raiseInvalidOpcodeException(currentcpuinfo);
       }
 
-      return handleVMCall(currentcpuinfo, vmregisters);
+      int result = handleVMCall(currentcpuinfo, vmregisters);
+      sendstringf("VMEXIT VMMCALL complete cpu=%d result=%6\n", currentcpuinfo->cpunr, vmregisters->rax);
+      return result;
       break;
     }
 
@@ -1823,4 +1829,6 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
   //still here
   return 1;
 }
+
+
 

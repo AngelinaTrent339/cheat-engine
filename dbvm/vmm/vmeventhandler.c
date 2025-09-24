@@ -4404,12 +4404,17 @@ int handleVMEvent_internal(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FX
       nosendchar[getAPICID()]=0;
       //sendstring("vmcall\n");
 
+      QWORD guestrip = vmread(vm_guest_rip);
+      sendstringf("VMEXIT VMCALL cpu=%d rip=%6 rax=%6 rdx=%6 rcx=%6\n", currentcpuinfo->cpunr, guestrip, vmregisters->rax, vmregisters->rdx, vmregisters->rcx);
+
       if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
       {
+        sendstringf("VMEXIT VMCALL invalid password -> #UD\n");
         return raiseInvalidOpcodeException(currentcpuinfo);
       }
 
       result = handleVMCall(currentcpuinfo, vmregisters);
+      sendstringf("VMEXIT VMCALL complete cpu=%d result=%6\n", currentcpuinfo->cpunr, vmregisters->rax);
 
       //sendstringf("Returned from handleVMCall, result=%d\n\r",result);
       return result;
@@ -4781,4 +4786,7 @@ int handleVMEvent(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE64 *f
   }
   return result;
 }
+
+
+
 

@@ -2530,9 +2530,19 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   }
 
 
+  ULONG command = vmcall_instruction[2];
+  QWORD guestrip;
+  if (isAMD)
+    guestrip = currentcpuinfo->vmcb->RIP;
+  else
+    guestrip = vmread(vm_guest_rip);
+
+  sendstringf("VMCALL start: cpu=%d rip=%6 cmd=%u rdx=%6 rcx=%6 ptr=%6\n", currentcpuinfo->cpunr, guestrip, command, vmregisters->rdx, vmregisters->rcx, vmregisters->rax);
+
   //sendstringf("Handling vmcall command %d\n\r",vmcall_instruction[2]);
 
   int r=_handleVMCallInstruction(currentcpuinfo, vmregisters, vmcall_instruction);
+  sendstringf("VMCALL done: cpu=%d cmd=%u result=%6 status=%d\n", currentcpuinfo->cpunr, command, vmregisters->rax, r);
   unmapVMmemory(vmcall_instruction, vmcall_instruction_size);
   return r;
 }
@@ -2578,4 +2588,6 @@ int handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
 
   return result;
 }
+
+
 
