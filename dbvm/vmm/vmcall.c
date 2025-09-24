@@ -895,7 +895,6 @@ VMSTATUS vmcall_watch_retrievelog(pcpuinfo currentcpuinfo, VMRegisters *vmregist
 {
   int ID = vmcall_instruction[3];
   QWORD results = *(QWORD*)&vmcall_instruction[4];
-  DWORD resultsize = vmcall_instruction[6];
   DWORD *copied_ptr = &vmcall_instruction[7];
   QWORD *errorcode;
   if (isAMD)
@@ -942,22 +941,22 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
   switch (vmcall_instruction[2])
   {
     case VMCALL_GETVERSION: //get version
-      if ((vmregisters->cs & 3) != 0)
+    {
+      WORD guestCS = isAMD ? currentcpuinfo->vmcb->cs_selector : (WORD)vmread(vm_guest_cs);
+      if ((guestCS & 3) != 0)
       {
         vmregisters->rax = 0;
         break;
       }
-      //sendstring("Version request\n\r");
-      // Return real version only when proper passwords are provided. Probes get 0.
       if ((vmregisters->rdx==Password1) && (vmregisters->rcx==Password3) && (vmcall_instruction[1]==Password2))
       {
-        // Obfuscate version response with dynamic XOR based on passwords
         QWORD version_mask = (Password1 ^ Password3) & 0xFF000000ULL;
         vmregisters->rax = version_mask + dbvmversion;
       }
       else
         vmregisters->rax=0;
       break;
+    }
 
     case VMCALL_GETRUNTIMEPASSWORDS: //retrieve current password triple
     {
@@ -969,7 +968,8 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
         QWORD Password3;
       } __attribute__((__packed__)) *PVMCALL_GETRUNTIMEPASSWORDS_PARAM;
       PVMCALL_GETRUNTIMEPASSWORDS_PARAM p = (PVMCALL_GETRUNTIMEPASSWORDS_PARAM)vmcall_instruction;
-      if ((vmregisters->cs & 3) != 0)
+      WORD guestCS = isAMD ? currentcpuinfo->vmcb->cs_selector : (WORD)vmread(vm_guest_cs);
+      if ((guestCS & 3) != 0)
       {
         vmregisters->rax = 1;
         break;
@@ -980,6 +980,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       vmregisters->rax = 0;
       break;
     }
+
     case VMCALL_CHANGEPASSWORD: //change password
     {
       sendstring("Password change\n\r");
