@@ -982,15 +982,6 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     }
     case VMCALL_CHANGEPASSWORD: //change password
     {
-      typedef struct
-      {
-        VMCALL_BASIC vmcall;
-        QWORD Password1;
-        DWORD Password2;
-        QWORD Password3;
-      }  __attribute__((__packed__)) *PVMCALL_CHANGEPASSWORD_PARAM;
-      PVMCALL_CHANGEPASSWORD_PARAM p=(PVMCALL_CHANGEPASSWORD_PARAM)vmcall_instruction;
-
       sendstring("Password change\n\r");
       // Skip struct typedef, access directly from vmcall_instruction
       Password1 = *(QWORD*)&vmcall_instruction[3];  // Password1 after VMCALL_BASIC
