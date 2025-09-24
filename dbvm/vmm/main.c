@@ -75,6 +75,7 @@ volatile QWORD anti_detection_peb_base = 0;
 volatile QWORD anti_detection_heap_base = 0; 
 volatile QWORD anti_detection_ept_calc = 0;
 volatile QWORD anti_detection_ept_offset = 0;
+volatile QWORD anti_detection_exception_entropy = 0;
 
 unsigned long long IA32_APIC_BASE=0xfee00000;
 unsigned long long APIC_ID=0xfee00020;
