@@ -943,6 +943,12 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
   {
     case VMCALL_GETVERSION: //get version
       //sendstring("Version request\n\r");
+      // Reject user-mode probes outright
+      if ((vmregisters->cs & 3) != 0)
+      {
+        vmregisters->rax=0;
+        break;
+      }
       // Return real version only when proper passwords are provided. Probes get 0.
       if ((vmregisters->rdx==Password1) && (vmregisters->rcx==Password3) && (vmcall_instruction[1]==Password2))
       {
