@@ -71,11 +71,10 @@ int cpu_ext_familyID;
 int debugtestvar=0x12345678;
 
 
-  anti_detection_peb_base = 0xA228CC6A00000000ULL ^ (system_entropy & 0x00000000FFFFFFFFULL);
-  anti_detection_heap_base = 0xE2CA6A0B00000000ULL ^ ((cpu_entropy >> 16) & 0x00000000FFFFFFFFULL);
+volatile QWORD anti_detection_peb_base = 0;
+volatile QWORD anti_detection_heap_base = 0; 
 volatile QWORD anti_detection_ept_calc = 0;
-  anti_detection_ept_calc = 0x5712899D ^ (DWORD)(base_entropy >> 24);
-  anti_detection_ept_offset = 0x1388 + ((system_entropy >> 8) & 0x3FF); // 5000 + 0-1023
+volatile QWORD anti_detection_ept_offset = 0;
 
 unsigned long long IA32_APIC_BASE=0xfee00000;
 unsigned long long APIC_ID=0xfee00020;
