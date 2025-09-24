@@ -70,12 +70,12 @@ int cpu_ext_familyID;
 
 int debugtestvar=0x12345678;
 
-// ANTI-HYPERION DETECTION GLOBALS
-volatile QWORD anti_detection_peb_base = 0;
-volatile QWORD anti_detection_heap_base = 0; 
+
+  anti_detection_peb_base = 0xA228CC6A00000000ULL ^ (system_entropy & 0x00000000FFFFFFFFULL);
+  anti_detection_heap_base = 0xE2CA6A0B00000000ULL ^ ((cpu_entropy >> 16) & 0x00000000FFFFFFFFULL);
 volatile QWORD anti_detection_ept_calc = 0;
-volatile QWORD anti_detection_ept_offset = 0;
-volatile QWORD anti_detection_exception_entropy = 0;
+  anti_detection_ept_calc = 0x5712899D ^ (DWORD)(base_entropy >> 24);
+  anti_detection_ept_offset = 0x1388 + ((system_entropy >> 8) & 0x3FF); // 5000 + 0-1023
 
 unsigned long long IA32_APIC_BASE=0xfee00000;
 unsigned long long APIC_ID=0xfee00020;
@@ -334,21 +334,12 @@ void vmm_entry(void)
   
   // 2. ANTI-PEB/TEB DETECTION: Randomize system structure corruption patterns
   // These replace the fixed signatures Hyperion looks for
-  QWORD structure_seed = mix1 ^ (mix2 << 17);
-  QWORD heap_seed = mix2_base ^ (extra_entropy << 5);
-  QWORD offset_seed = mix3_base ^ (entropy_mix << 9);
-
-  anti_detection_peb_base = (structure_seed & 0xFFFFFFFF00000000ULL) | ((structure_seed >> 16) & 0x00000000FFFFFFFFULL);
-  anti_detection_heap_base = (heap_seed & 0xFFFFFFFF00000000ULL) | ((heap_seed >> 12) & 0x00000000FFFFFFFFULL);
+  anti_detection_peb_base = 0xA228CC6A00000000ULL ^ (system_entropy & 0x00000000FFFFFFFFULL);
+  anti_detection_heap_base = 0xE2CA6A0B00000000ULL ^ ((cpu_entropy >> 16) & 0x00000000FFFFFFFFULL);
   
   // 3. ANTI-EPT DETECTION: Randomize physical memory calculation constants
-  anti_detection_ept_calc = (DWORD)((offset_seed >> 8) & 0xFFFFFFFFULL);
-  if (anti_detection_ept_calc == 0)
-    anti_detection_ept_calc = (DWORD)(((structure_seed ^ heap_seed) >> 5) | 1);
-
-  anti_detection_ept_offset = ((offset_seed >> 4) & 0x0FFF) + ((structure_seed >> 28) & 0x0FFF);
-  if (anti_detection_ept_offset == 0)
-    anti_detection_ept_offset = ((heap_seed >> 20) & 0x0FFF) + 1;
+  anti_detection_ept_calc = 0x5712899D ^ (DWORD)(base_entropy >> 24);
+  anti_detection_ept_offset = 0x1388 + ((system_entropy >> 8) & 0x3FF); // 5000 + 0-1023
   
   // 4. ANTI-ICEBP DETECTION: Setup proper exception handling simulation
   anti_detection_exception_entropy = (base_entropy ^ cpu_entropy) & 0x7FFFFFFF;

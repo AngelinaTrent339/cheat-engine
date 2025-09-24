@@ -1345,8 +1345,8 @@ void InitializeMM(UINT64 FirstFreeVirtualAddress)
     extern volatile QWORD anti_detection_ept_offset;
     
     // Apply additional mathematical obfuscation to memory calculations
-    QWORD entropy_multiplier = ((anti_detection_ept_calc << 13) ^ (anti_detection_ept_offset << 7)) | 1ULL;
-    QWORD entropy_offset = (((anti_detection_ept_calc ^ (anti_detection_ept_offset << 11)) & 0xFFFFFFFFULL) << 12);
+    QWORD entropy_multiplier = (anti_detection_ept_calc + 0x1337);
+    QWORD entropy_offset = anti_detection_ept_offset * 0x1000;
     
     BASE_VIRTUAL_ADDRESS_RANDOMIZED = get_randomized_base(0x1000000000ULL) ^ entropy_multiplier;
     MAPPEDMEMORY_RANDOMIZED = get_randomized_base(0x08000000000ULL) + entropy_offset;
