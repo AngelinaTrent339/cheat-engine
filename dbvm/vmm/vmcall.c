@@ -895,7 +895,6 @@ VMSTATUS vmcall_watch_retrievelog(pcpuinfo currentcpuinfo, VMRegisters *vmregist
 {
   int ID = vmcall_instruction[3];
   QWORD results = *(QWORD*)&vmcall_instruction[4];
-  DWORD resultsize = vmcall_instruction[6];
   DWORD *copied_ptr = &vmcall_instruction[7];
   QWORD *errorcode;
   if (isAMD)
@@ -942,9 +941,16 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
   switch (vmcall_instruction[2])
   {
     case VMCALL_GETVERSION: //get version
+    {
       //sendstring("Version request\n\r");
       // Reject user-mode probes outright
-      if ((vmregisters->cs & 3) != 0)
+      WORD cs_selector;
+      if (isAMD)
+        cs_selector = currentcpuinfo->vmcb->cs_selector;
+      else
+        cs_selector = (WORD)vmread(vm_guest_cs);
+
+      if ((cs_selector & 3) != 0)
       {
         vmregisters->rax=0;
         break;
@@ -959,6 +965,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       else
         vmregisters->rax=0;
       break;
+    }
 
     case VMCALL_CHANGEPASSWORD: //change password
     {
@@ -969,7 +976,6 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
         DWORD Password2;
         QWORD Password3;
       }  __attribute__((__packed__)) *PVMCALL_CHANGEPASSWORD_PARAM;
-      PVMCALL_CHANGEPASSWORD_PARAM p=(PVMCALL_CHANGEPASSWORD_PARAM)vmcall_instruction;
 
       sendstring("Password change\n\r");
       // Skip struct typedef, access directly from vmcall_instruction
@@ -1807,7 +1813,6 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (hasEPTsupport || hasNPsupport)
       {
-        PVMCALL_CLOAK_TRACEONBP_PARAM p=(PVMCALL_CLOAK_TRACEONBP_PARAM)vmcall_instruction;
 
         QWORD physicalAddress = *(QWORD*)&vmcall_instruction[3];
         DWORD flags = vmcall_instruction[5];
@@ -2588,6 +2593,9 @@ int handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
 
   return result;
 }
+
+
+
 
 
 
