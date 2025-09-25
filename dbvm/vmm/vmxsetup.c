@@ -281,10 +281,7 @@ void setupVMX_AMD(pcpuinfo currentcpuinfo)
 
   currentcpuinfo->vmcb->InterceptExceptions=(1<<1) | (1<<3);// | (1<<14); //intercept int1, 3 and 14
 
-  // Ensure CPUID is intercepted on AMD so it can be masked
-  currentcpuinfo->vmcb->InterceptCPUID=1;
-
-  // currentcpuinfo->vmcb->InterceptINTR=1;
+ // currentcpuinfo->vmcb->InterceptINTR=1;
  // currentcpuinfo->vmcb->InterceptDR0_15Write=(1<<6); //dr6 so I can see what changed
 
 
@@ -318,16 +315,13 @@ void setupVMX_AMD(pcpuinfo currentcpuinfo)
     for (i=0; i<4096*2; i++)
       MSRBitmap[i]=0;
 
-    //Must protect 0xc0010117 (VM_HSAVE_PA) - CRITICAL FOR STARTUP DETECTION
+    //Must protect 0xc0010117 (MSRPM_BASE_PA)
     MSRBitmap[0x1000+(0x0117*2)/8]|=3 << ((0x0117*2) % 8);
 
-    //Must protect 0xc0010114 (VM_CR) - CRITICAL FOR STARTUP DETECTION  
-    MSRBitmap[0x1000+(0x0114*2)/8]|=3 << ((0x0114*2) % 8);
-
-    //Must protect 0xc0010115 (VM_IGGNE)
     MSRBitmap[0x1000+(0x0115*2)/8]|=3 << ((0x0115*2) % 8);
 
-    //EFER must be intercepted - CRITICAL FOR STARTUP DETECTION
+    //also 0xc0000080 (EFER)
+    //if (hideEFER)
     MSRBitmap[0x800+(0x80*2)/8]|=3 << ((0x80*2) % 8);
   }
   currentcpuinfo->vmcb->MSRPM_BASE_PA=VirtualToPhysical((void *)MSRBitmap);
@@ -716,11 +710,11 @@ int vmx_enableNMIWindowExiting(void)
   if (vmx_enableProcBasedFeature(PBEF_NMI_WINDOW_EXITING))
   {
     //PBEF_NMI_WINDOW_EXITING can be set
-    //"If the "virtual NMIs" VM-execution control is 0, the "NMI-window exiting" VM-execution control must be 0."
+    //"If the “virtual NMIs” VM-execution control is 0, the “NMI-window exiting” VM-execution control must be 0."
     //so virtual NMIs must be 1 as well
     if (vmx_enablePinBasedFeature(PINBEF_VIRTUAL_NMIS))
     {
-      //"If the "NMI exiting" VM-execution control is 0, the "virtual NMIs" VM-execution control must be 0"
+      //"If the “NMI exiting” VM-execution control is 0, the “virtual NMIs” VM-execution control must be 0"
       //so also enable NMI exiting
       if (vmx_enablePinBasedFeature(PINBEF_NMI_EXITING))
         return 1;

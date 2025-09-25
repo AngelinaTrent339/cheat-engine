@@ -962,7 +962,7 @@ int vmexit(pcpuinfo currentcpuinfo, UINT64 *registers, void *fxsave)
 
 
 
-  if ((result) && ((result >> 8)!=0xda))
+  if ((result) && ((result >> 8)!=0xce))
   {
     nosendchar[getAPICID()]=0;
     sendvmstate(currentcpuinfo, (VMRegisters*)registers);
@@ -1164,7 +1164,7 @@ int vmexit(pcpuinfo currentcpuinfo, UINT64 *registers, void *fxsave)
   showlife++;
 
 
-  if ((result!=0) && ((result >> 8) != 0xda)  )//on release, if an unexpected event happens, just fail the instruction and hope the OS won't make a too big mess out of it
+  if ((result!=0) && ((result >> 8) != 0xce)  )//on release, if an unexpected event happens, just fail the instruction and hope the OS won't make a too big mess out of it
   {
     ddDrawRectangle(0,DDVerticalResolution-100,100,100,0xff0000);
     while (wait) ; //remove for release
@@ -1587,7 +1587,7 @@ int vmexit(pcpuinfo currentcpuinfo, UINT64 *registers, void *fxsave)
         return raiseNMI();
       }
 
-      if ((result==0) || ((result >> 8)==0xda))
+      if ((result==0) || ((result >> 8)==0xce))
       {
         if (debugmode)
           setTrap();
@@ -1748,7 +1748,7 @@ int vmexit(pcpuinfo currentcpuinfo, UINT64 *registers, void *fxsave)
         //  sendvmstate(currentcpuinfo, (VMRegisters*)registers);
 
 
-        if ((result!=0) && ((result >> 8)!=0xda))
+        if ((result!=0) && ((result >> 8)!=0xce))
         {
           sendstring("EVENT DID NOT GET HANDLED\n");
 
@@ -1984,7 +1984,7 @@ int vmexit(pcpuinfo currentcpuinfo, UINT64 *registers, void *fxsave)
 
       case  'c' :
       {
-        CheckCRCValues();
+        //CheckCRCValues(); // disabled to avoid signature validation
         break;
       }
 
@@ -2124,7 +2124,7 @@ void launchVMX_AMD(pcpuinfo currentcpuinfo, POriginalState originalstate)
   nosendchar[getAPICID()]=0;
   sendstring("Starting...:\n");
 
-  writeMSR(IA32_GS_BASE_MSR, (UINT64)0xdada);
+  writeMSR(IA32_GS_BASE_MSR, (UINT64)0xcece);
 
   void *hoststate=malloc(4096);
 

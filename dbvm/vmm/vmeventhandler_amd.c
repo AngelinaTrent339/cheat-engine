@@ -30,13 +30,6 @@ int c=0;
 
 criticalSection debugoutput={.name="debugoutput", .debuglevel=2};
 
-// Self-test one-shot flags and timestamp
-static volatile int selftest_printed_cpuid1=0;
-static volatile int selftest_printed_hvleaf=0;
-static volatile int selftest_printed_hvsample=0;
-static volatile int selftest_printed_rtdelta=0;
-static volatile QWORD selftest_cpuid_tsc=0;
-
 
 int isPrefix(unsigned char b)
 {
@@ -902,14 +895,6 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
       int r;
       r=handle_rdtsc(currentcpuinfo, vmregisters);
       currentcpuinfo->lastTSCTouch=_rdtsc();
-
-      if (!selftest_printed_rtdelta && selftest_cpuid_tsc)
-      {
-        QWORD now=_rdtsc();
-        QWORD delta=now - selftest_cpuid_tsc;
-        sendstringf("SelfTest: RDTSC delta after CPUID=%6\n", delta);
-        selftest_printed_rtdelta=1;
-      }
       return r;
     }
 
@@ -917,14 +902,6 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
     {
       int r=handle_rdtsc(currentcpuinfo, vmregisters);
       currentcpuinfo->lastTSCTouch=_rdtsc();
-
-      if (!selftest_printed_rtdelta && selftest_cpuid_tsc)
-      {
-        QWORD now=_rdtsc();
-        QWORD delta=now - selftest_cpuid_tsc;
-        sendstringf("SelfTest: RDTSCP delta after CPUID=%6\n", delta);
-        selftest_printed_rtdelta=1;
-      }
 
       vmregisters->rcx=readMSR(IA32_TSC_AUX_MSR);
       return r;
@@ -989,11 +966,15 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
 
             break;
 
+          case VM_IGGNE_MSR:
+            nosendchar[getAPICID()]=0;
+            sendstring("WEEEEEEEEEEEEEEEEEEEE\n");
+            while (1);
+            break;
 
           case VM_HSAVE_PA_MSR:
             //nosendchar[getAPICID()]=0;
             sendstringf("wrmsr(VM_HSAVE_PA,%6)\n", newvalue);
-            // Store in guest tracking but always return 0 on reads
             currentcpuinfo->guest_VM_HSAVE_PA=newvalue;
 
             if (newvalue==0)
@@ -1005,11 +986,6 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
 
 
             nosendchar[getAPICID()]=1;
-            break;
-
-          case 0xc0010114: // VM_CR MSR write - ignore but don't fault
-            // Silently ignore VM_CR writes to prevent startup detection
-            sendstringf("wrmsr(VM_CR,%6) - ignored for anti-detection\n", newvalue);
             break;
 
           default:
@@ -1058,24 +1034,20 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
 
 
           case 0xc0000080://efer
-            // ALWAYS hide SVME bit from guest - CRITICAL for startup detection
-            value=currentcpuinfo->vmcb->EFER & ~(1ULL<<12);
+            //update LMA
+
+            if ((currentcpuinfo->efer >> 12) & 1) //just give it the full EFER if it has enabled svmx as well
+              currentcpuinfo->efer=currentcpuinfo->vmcb->EFER;
+            else
+            {
+              currentcpuinfo->efer=currentcpuinfo->vmcb->EFER & ~(1<<12); //everything except this bit
+            }
+
+            value=currentcpuinfo->efer;
             break;
 
           case VM_HSAVE_PA_MSR:
-            // ALWAYS return 0 for VM_HSAVE_PA - CRITICAL for startup detection
-            value=0;
-            break;
-
-          case VM_IGGNE_MSR:
-            // Return realistic VM_IGGNE value to match real AMD hardware
-            value=readMSRSafe(VM_IGGNE_MSR); // Keep real hardware value to prevent detection
-            break;
-
-          case 0xc0010114: // VM_CR MSR - CRITICAL for startup detection
-            // FIXED: Return realistic VM_CR value instead of impossible 0
-            // Real SVM systems report non-zero VM_CR values
-            value=readMSRSafe(0xc0010114) & ~(1ULL<<4); // Clear SVM lock but keep other bits
+            value=currentcpuinfo->guest_VM_HSAVE_PA;
             break;
 
           default:
@@ -1381,116 +1353,17 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
       //dbvm callback for amd
       nosendchar[getAPICID()]=0;
      // sendstringf("%d: handleVMCall()", currentcpuinfo->cpunr);
-
-      QWORD guestrip = currentcpuinfo->vmcb->RIP;
-      sendstringf("VMEXIT VMMCALL cpu=%d rip=%6 rax=%6 rdx=%6 rcx=%6\n", currentcpuinfo->cpunr, guestrip, vmregisters->rax, vmregisters->rdx, vmregisters->rcx);
-
-      if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
-      {
-        sendstringf("VMEXIT VMMCALL invalid password -> #UD\n");
-        return raiseInvalidOpcodeException(currentcpuinfo);
-      }
-
-      int result = handleVMCall(currentcpuinfo, vmregisters);
-      sendstringf("VMEXIT VMMCALL complete cpu=%d result=%6\n", currentcpuinfo->cpunr, vmregisters->rax);
-      return result;
+      return handleVMCall(currentcpuinfo, vmregisters);
       break;
     }
 
     case VMEXIT_CPUID:
     {
       nosendchar[getAPICID()]=0;
-      // Emulate CPUID for AMD guests
-      UINT64 oldeax = currentcpuinfo->vmcb->RAX & 0xffffffffULL;
-      UINT64 a = oldeax;
-      UINT64 b = 0;
-      UINT64 c = vmregisters->rcx & 0xffffffffULL;
-      UINT64 d = 0;
+      sendstringf("!CPUID! %6->%6\n", currentcpuinfo->vmcb->RIP, currentcpuinfo->vmcb->nRIP);
+      currentcpuinfo->vmcb->RIP=currentcpuinfo->vmcb->nRIP;
 
-      _cpuid(&a, &b, &c, &d);
-
-      if (oldeax==1)
-      {
-        if ((c & (1ULL << 26)) && (currentcpuinfo->vmcb->CR4 & CR4_OSXSAVE))
-          c |= (1ULL << 27);
-      }
-
-
-
-
-      // One-shot self-test prints
-      if (!selftest_printed_cpuid1 && oldeax==1)
-      {
-        sendstringf("SelfTest: CPUID.1 ECX=%8 (HV=%d VMX=%d)\n", (DWORD)c, (DWORD)((c>>31)&1), (DWORD)((c>>5)&1));
-        selftest_printed_cpuid1=1;
-      }
-      if (!selftest_printed_hvleaf && oldeax==0x4000001eULL)
-      {
-        sendstringf("SelfTest: CPUID 0x4000001E => EAX=%8 EBX=%8 ECX=%8 EDX=%8\n", (DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
-        selftest_printed_hvleaf=1;
-      }
-      static volatile int selftest_printed_svm=0;
-      if (!selftest_printed_svm && oldeax==0x8000000AULL)
-      {
-        sendstringf("SelfTest: CPUID 0x8000000A (SVM) => EAX=%8 EBX=%8 ECX=%8 EDX=%8 \n", (DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
-        selftest_printed_svm=1;
-      }
-      if (!selftest_printed_hvsample && (oldeax>=0x40000000ULL && oldeax<=0x400000FFULL))
-      {
-        sendstringf("SelfTest: HV leaf %8 sample => %8 %8 %8 %8\n", (DWORD)oldeax,(DWORD)a,(DWORD)b,(DWORD)c,(DWORD)d);
-        selftest_printed_hvsample=1;
-      }
-
-      currentcpuinfo->vmcb->RAX = (DWORD)a;
-      vmregisters->rbx = (DWORD)b;
-      vmregisters->rcx = (DWORD)c;
-      vmregisters->rdx = (DWORD)d;
-
-      // Record CPUID TSC for next RDTSC/RDTSCP delta
-      selftest_cpuid_tsc=_rdtsc();
-
-      // Advance RIP
-      if (AMD_hasNRIPS)
-      {
-        currentcpuinfo->vmcb->RIP = currentcpuinfo->vmcb->nRIP;
-      }
-      else
-      {
-        // Fallback: scan for CPUID (0F A2) considering prefixes
-        int error;
-        UINT64 pagefaultaddress;
-        int size = 15;
-        unsigned char *bytes=(unsigned char *)mapVMmemory(currentcpuinfo, currentcpuinfo->vmcb->cs_base+currentcpuinfo->vmcb->RIP, size, &error, &pagefaultaddress);
-        if (!bytes)
-        {
-          size=pagefaultaddress-currentcpuinfo->vmcb->cs_base+currentcpuinfo->vmcb->RIP;
-          bytes=mapVMmemory(currentcpuinfo, currentcpuinfo->vmcb->cs_base+currentcpuinfo->vmcb->RIP, size, &error, &pagefaultaddress);
-        }
-        if (bytes)
-        {
-          int start=-1;
-          int i;
-          for (i=0; i<15; i++)
-          {
-            if (isPrefix(bytes[i])==FALSE)
-            {
-              start=i;
-              break;
-            }
-          }
-          if (start!=-1 && (start+1)<15 && bytes[start]==0x0f && bytes[start+1]==0xa2)
-            currentcpuinfo->vmcb->RIP+=start+2;
-          else
-            currentcpuinfo->vmcb->RIP+=2; // best-effort
-
-          unmapVMmemory(bytes, size);
-        }
-        else
-        {
-          currentcpuinfo->vmcb->RIP+=2; // best-effort
-        }
-      }
-
+      while (1);
       return 0;
     }
 
@@ -1829,6 +1702,5 @@ int handleVMEvent_amd(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE6
   //still here
   return 1;
 }
-
 
 

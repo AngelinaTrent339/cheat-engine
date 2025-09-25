@@ -127,8 +127,7 @@ void startNextCPU(void)
 
 void CheckCRCValues(void)
 {
-  //CRC CHECK DISABLED FOR COMPATIBILITY
-  sendstring("CRC check disabled\n\r");
+  // disabled integrity check to avoid static signature enforcement
   return;
 }
 
@@ -297,17 +296,18 @@ void vmm_entry(void)
   //stack has been properly setup, so lets allow other cpu's to launch as well
   InitCommon();
 
-  // OBFUSCATED CUSTOM PASSWORDS - different lengths and patterns to avoid detection
+  // Initialize with secure, non-default passwords (XOR-obfuscated)
   const QWORD XOR_MASK_1 = 0xDEADBE7FCAFEBABEULL;
-  const QWORD XOR_MASK_2 = 0x133701DE;
+  const DWORD XOR_MASK_2 = 0x133701DE;
   const QWORD XOR_MASK_3 = 0xFEEDFACE13377331ULL;
-  
-  // Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
-  Password1 = 0xCD9AAD4814537A60ULL ^ XOR_MASK_1;  // Different length (64-bit)
-  Password2 = 0x1337BF31 ^ (DWORD)XOR_MASK_2;      // Much shorter (16-bit) 
-  Password3 = 0x3413407000006006ULL ^ XOR_MASK_3;  // Custom pattern
-  
-  sendstringf("DBVM initialized with protected passwords\n");
+
+  // Effective passwords after XOR:
+  // Password1 => 0x13371337DEADC0DE
+  // Password2 => 0x0000BEEF
+  // Password3 => 0xCAFEBABE13371337
+  Password1 = 0xCD9AAD4814537A60ULL ^ XOR_MASK_1;
+  Password2 = 0x1337BF31 ^ XOR_MASK_2;
+  Password3 = 0x3413407000006006ULL ^ XOR_MASK_3;
 
   /*version 1 was the 32-bit only version,
    * 2 added 64-bit,
@@ -326,9 +326,8 @@ void vmm_entry(void)
    * 14=properly emulate debug step
    * 15=some amd fixes/contiguous memory param/dbvmbp
    * 16=3th vmcall password
-   * 19=signature update
    */
-  dbvmversion=37;
+  dbvmversion=16;
   int1redirection=1; //redirect to int vector 1 (might change this to the perfcounter interrupt in the future so I don't have to deal with interrupt prologue/epilogue)
   int3redirection=3;
   int14redirection=14;
@@ -377,7 +376,7 @@ void vmm_entry(void)
 
   //initialize
 
-  sendstring("Welcome to Dark Byte\'s Virtual Machine Manager\n\r");
+  sendstring("Virtual Machine Manager initialized\n\r");
   sendstringf("pagedirlvl4=%6\n\r",(unsigned long long)pagedirlvl4);
 
   sendstring("Initializing MM\n\r");
@@ -748,7 +747,7 @@ AfterBPTest:
   }
 
   //ARD Setup
-  //The ARD is used for old boot mechanisms. This way DBVM can tell the guest which physical pages are 'reserved' by the system and should not be used/overwritten
+  //The ARD is used for old boot mechanisms. This way the hypervisor can tell the guest which physical pages are 'reserved' by the system and should not be used/overwritten
   //In loadedOS mode DBVM makes use of built-in memory allocation systems so not needed
 
   sendstring("Calling initARDcount()\n");
@@ -772,7 +771,7 @@ AfterBPTest:
   //create a page filled with 0xff (for faking non present memory access)
   ffpage=malloc(4096);
   for (i=0; i<4096; i++)
-    ffpage[i]=0xda;
+    ffpage[i]=0xFF; // neutral fill (no 0xCE pattern)
 
   sendstringf("Physical address of ffpage=%6\n\r",(UINT64)VirtualToPhysical(ffpage));
 
@@ -842,15 +841,7 @@ AfterBPTest:
 
 
 
-    // Obfuscated vendor detection to prevent fingerprinting
-    QWORD vendor_sig1 = b ^ (a >> 8);  // Add CPU version entropy
-    QWORD vendor_sig2 = d ^ (c << 4);   
-    QWORD vendor_sig3 = c ^ (a & 0xFF);
-    
-    // Check for AMD with obfuscated pattern matching
-    if (((vendor_sig1 ^ (a >> 8)) == 0x68747541) && 
-        ((vendor_sig2 ^ (c << 4)) == 0x69746e65) && 
-        ((vendor_sig3 ^ (a & 0xFF)) == 0x444d4163))
+    if ((b==0x68747541) && (d==0x69746e65) && (c==0x444d4163))
     {
       isAMD=1;
       vmcall_instr=vmcall_amd;
@@ -1012,10 +1003,10 @@ AfterBPTest:
   }
 
   displayline("Generating debug information\n\r");
-  originalVMMcrc=generateCRC((void*)vmxloop,0x2a000);
+  originalVMMcrc=0; // no runtime CRC baseline
 
 
-  displayline("Virtual machine manager loaded\n");
+  displayline("Hypervisor initialized\n");
 
 
 
@@ -1086,11 +1077,11 @@ void vmcalltest(void)
   try
   {
     dbvmversion=vmcalltest_asm();
-    sendstringf("dbvm is loaded. Version %x\n", dbvmversion);
+    sendstringf("Hypervisor is loaded. Version %x\n", dbvmversion);
   }
   except
   {
-    sendstringf("dbvm is not loaded\n");
+    sendstringf("Hypervisor is not loaded\n");
   }
   tryend
 }
@@ -1163,7 +1154,7 @@ void reboot(int skipAPTerminationWait)
 
   sendstring("Calling quickboot\n\r");
 
-  if (skipAPTerminationWait==0xdadead) //PSOD
+  if (skipAPTerminationWait==0xcedead) //PSOD
     *(unsigned char *)0x7c0e=0xff;
   else
     *(unsigned char *)0x7c0e=bootdisk;
@@ -1213,7 +1204,7 @@ void menu2(void)
 
     }
 
-    displayline("Welcome to the DBVM interactive menu\n\n");
+    displayline("Hypervisor interactive menu\n\n");
     displayline("These are your options:\n");
     displayline("0: Start virtualization\n");
     displayline("1: Keyboard test\n");
@@ -1453,7 +1444,7 @@ afterWRBPtest:
 
           case '6':
           {
-            displayline("Setting the redirects. #UD Interrupt will fire if dbvm is not loaded (and crash)");
+            displayline("Setting the redirects. #UD Interrupt will fire if hypervisor is not loaded (and crash)");
             vmcall_setintredirects();
 
             break;

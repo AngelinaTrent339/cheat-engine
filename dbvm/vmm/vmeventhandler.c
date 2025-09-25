@@ -29,7 +29,7 @@ vmeventhandler.c: This will handle the events
 #define sendstring(s)
 #endif
 
-criticalSection CR3ValueLogCS={.name="VMCS", .debuglevel=2};
+criticalSection CR3ValueLogCS={.name="CR3ValueLogCS", .debuglevel=2};
 QWORD *CR3ValueLog; //if not NULL, record
 int CR3ValuePos;
 
@@ -37,8 +37,8 @@ int CR3ValuePos;
 volatile QWORD globalTSC;
 volatile QWORD lowestTSC=0;
 
-int adjustTimestampCounters=0;
-int adjustTimestampCounterTimeout=1800; // Slightly randomized from 2000
+int adjustTimestampCounters=1;
+int adjustTimestampCounterTimeout=2000;
 
 int useSpeedhack=0;
 double speedhackSpeed=1.0f;
@@ -50,7 +50,7 @@ QWORD speedhackInitialTime=0;
 //QWORD rdtscTime=6000;
 //QWORD rdtscpTime=10;
 
-criticalSection TSCCS={.name="TSCX", .debuglevel=2};
+criticalSection TSCCS={.name="TSCCS", .debuglevel=2};
 
 int handle_rdtsc(pcpuinfo currentcpuinfo, VMRegisters *vmregisters);
 
@@ -1410,7 +1410,7 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
   IOExit_Qualification iodata;
   iodata.Exit_Qualification=vmread(vm_exit_qualification);
   //check Line Control Register to see if DLAB is on
-  char dlab=com1state.Line_Control_Register >> 7;
+  char dlab=fakecom1.Line_Control_Register >> 7;
 
   ULONG value8=vmregisters->rax & 0xff;
   //ULONG value16=vmregisters->rax & 0xffff;
@@ -1460,7 +1460,7 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
         if (dlab)
         {
           //write to Devisor_Latch_Low
-          com1state.Devisor_Latch_Low=value8;
+          fakecom1.Devisor_Latch_Low=value8;
         }
         else
         {
@@ -1478,7 +1478,7 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
         if (dlab)
         {
           //read from Devisor_Latch_Low
-          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Devisor_Latch_Low;
+          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Devisor_Latch_Low;
         }
         else
         {
@@ -1502,22 +1502,22 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
       {
         if (dlab)
         {
-          com1state.Devisor_Latch_High=value8;
+          fakecom1.Devisor_Latch_High=value8;
         }
         else
         {
-          com1state.Interrupt_Enable_Register=value8;
+          fakecom1.Interrupt_Enable_Register=value8;
         }
       }
       else //read
       {
         if (dlab)
         {
-          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Devisor_Latch_High;
+          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Devisor_Latch_High;
         }
         else
         {
-          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Interrupt_Enable_Register;
+          vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Interrupt_Enable_Register;
         }
       }
       return 0;
@@ -1530,11 +1530,11 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
 
       if (iodata.direction==0) //write
       {
-        com1state.FIFO_Control_Register=value8;
+        fakecom1.FIFO_Control_Register=value8;
       }
       else //read
       {
-        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Interrupt_Identification_Register;
+        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Interrupt_Identification_Register;
       }
 
       return 0;
@@ -1546,11 +1546,11 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
 
       if (iodata.direction==0) //write
       {
-        com1state.Line_Control_Register=value8;
+        fakecom1.Line_Control_Register=value8;
       }
       else //read
       {
-        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Line_Control_Register;
+        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Line_Control_Register;
       }
 
       return 0;
@@ -1562,11 +1562,11 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
 
       if (iodata.direction==0) //write
       {
-        com1state.Modem_Control_Register=value8;
+        fakecom1.Modem_Control_Register=value8;
       }
       else //read
       {
-        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Modem_Control_Register;
+        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Modem_Control_Register;
       }
 
       return 0;
@@ -1599,11 +1599,11 @@ int handleIOAccess(VMRegisters *vmregisters UNUSED)
     {
       if (iodata.direction==0) //write
       {
-        com1state.Scratch_Register=value8;
+        fakecom1.Scratch_Register=value8;
       }
       else //read
       {
-        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + com1state.Scratch_Register;
+        vmregisters->rax=(vmregisters->rax & 0xffffffffffffff00) + fakecom1.Scratch_Register;
       }
 
       return 0;
@@ -1790,7 +1790,7 @@ int handleWRMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
 
 }
 
-int msrCnt=0;
+int RDMSRcounter=0;
 
 int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
 {
@@ -1799,7 +1799,7 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   int exceptionnr;
 
   sendstring("emulating RDMSR\n\r");
-  msrCnt++;
+  RDMSRcounter++;
 
 
   unsigned long long result;
@@ -1811,38 +1811,17 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   {
     case IA32_TIME_STAMP_COUNTER:
       return handle_rdtsc(currentcpuinfo, vmregisters); //handles the register setting and rip adjustment
-      
-    // CRITICAL FIX: Add missing APERF/MPERF virtualization to prevent TSC comparison detection
-    case 0xe7: // IA32_MPERF 
-    {
-      // Scale MPERF proportionally with TSC to maintain realistic ratios
-      QWORD real_mperf = readMSRSafe(0xe7);
-      QWORD scaled_mperf = (real_mperf * currentcpuinfo->lowestTSC) / _rdtsc();
-      result = scaled_mperf;
-      break;
-    }
-    
-    case 0xe8: // IA32_APERF
-    {
-      // Scale APERF proportionally with TSC to maintain realistic ratios  
-      QWORD real_aperf = readMSRSafe(0xe8);
-      QWORD scaled_aperf = (real_aperf * currentcpuinfo->lowestTSC) / _rdtsc();
-      result = scaled_aperf;
-      break;
-    }
 
 
-    case IA32_FEATURE_CONTROL_MSR:
-      // CRITICAL FIX: Return realistic VMX-enabled state instead of impossible "locked but disabled"
-      // Anti-cheat detects the impossible state where LOCK=1 but VMX bits are 0
-      result=readMSRSafe(IA32_FEATURE_CONTROL_MSR);
-      
-      // Ensure realistic state: if lock bit is set, VMX enable bits should also be set
-      // This matches what real systems with working VMX report
-      if (result & FEATURE_CONTROL_LOCK) {
-        result |= FEATURE_CONTROL_VMXON;  // Set VMX enable if locked
-      }
-      break;
+	  case IA32_FEATURE_CONTROL_MSR:
+	    result=readMSRSafe(IA32_FEATURE_CONTROL_MSR);
+	    result=result | FEATURE_CONTROL_LOCK; //set the LOCK bit (so the system thinks it can't be changed anymore)
+
+	    result=result & ~(FEATURE_CONTROL_VMXON_SMX); //unset the VMX capability in SMX mode
+
+	    if (emulatevmx==0)
+	      result=result & ~(FEATURE_CONTROL_VMXON); //unset the VMX capability
+	    break;
 
     case 0x174: //sysenter_CS
       result=currentcpuinfo->sysenter_CS;
@@ -1903,30 +1882,6 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
       break;
     }
 
-    // AMD SVM MSRs - return realistic values to prevent detection
-    case 0xc0010114: // VM_CR
-      if (isAMD) {
-        // Return realistic VM_CR value with SVM lock cleared
-        result=readMSRSafe(msr) & ~(1ULL<<4); // Clear SVM lock but keep other hardware bits
-      } else
-        return raiseGeneralProtectionFault(0);
-      break;
-      
-    case 0xc0010115: // VM_IGGNE
-      if (isAMD) {
-        // Return realistic non-zero VM_IGGNE value to match real AMD hardware
-        result=readMSRSafe(msr); // Keep real hardware value
-      } else
-        return raiseGeneralProtectionFault(0);
-      break;
-      
-    case 0xc0010117: // VM_HSAVE_PA_MSR
-      if (isAMD)
-        result=readMSRSafe(msr);
-      else
-        return raiseGeneralProtectionFault(0);
-      break;
-
     default:
       sendstringf("MSR read event for msr that wasn\'t supposed to cause an exit (%x)!!!\n\r",msr);
 
@@ -1963,7 +1918,7 @@ int handleRDMSR(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
 }
 
 
-criticalSection cpuidsourcesCS={.name="CPUX", .debuglevel=2};
+criticalSection cpuidsourcesCS={.name="cpuidsourcesCS", .debuglevel=2};
 
 int handleCPUID(VMRegisters *vmregisters)
 {
@@ -1979,38 +1934,32 @@ int handleCPUID(VMRegisters *vmregisters)
   }
 
 
-  UINT64 oldeax=vmregisters->rax;
   _cpuid(&(vmregisters->rax),&(vmregisters->rbx),&(vmregisters->rcx),&(vmregisters->rdx));
 
-  // CRITICAL ANTI-DETECTION: Hide virtualization capabilities to prevent startup fingerprinting
+  /*
   if (oldeax==1)
   {
-    // Preserve real VMX capability state to avoid detection
-    // Only apply OSXSAVE logic, don't clear VMX bit (bit 5)
-    if ((vmregisters->rcx & (1<<26)) && (vmread(vm_guest_cr4) & CR4_OSXSAVE)) //does it have OSXSave capabilities and is it enabled ?
+    //remove the hypervisor active bit (bit 31 in ecx)
+    vmregisters->rcx=vmregisters->rcx & (~(1 << 31));
+
+    if ((vmregisters->rcx & (1<<26)) && (vmread(vm_guest_cr4) & CR4_OSXSAVE)) //doe sit have OSXSave capabilities and is it enabled ?
       vmregisters->rcx=vmregisters->rcx | (1 << 27); //the guest has activated osxsave , represent that in cpuid
-    
-    // DO NOT clear VMX bit - this would be detectable on real hardware that supports VMX
-    // Anti-cheat expects VMX to be present on VMX-capable processors
-  }
-  
-  // Hide hypervisor presence while preserving hardware virtualization features
-  if (oldeax >= 0x40000000ULL && oldeax <= 0x400000FFULL)
+  }*/
+
+
+  /*
+  if (oldeax==1)
   {
-    // Return zeros for hypervisor CPUID leaves to hide hypervisor presence
-    // But don't touch the underlying hardware VMX/SVM capability reporting
-    vmregisters->rax = 0;
-    vmregisters->rbx = 0;
-    vmregisters->rcx = 0;
-    vmregisters->rdx = 0;
-  }
-  
-  // For AMD SVM detection leaf - preserve real hardware response
-  if (oldeax == 0x8000000AULL)
-  {
-    // Keep real SVM capabilities - clearing them on SVM-capable hardware is detectable
-    // Anti-cheat expects this leaf to exist and return valid data on AMD SVM systems
-  }
+    //remove vmx capability in ecx
+    vmregisters->rcx=vmregisters->rcx & (~(1 << 5)); //set bit 5 to 0
+  }*/
+
+  //if (oldeax==0x80000001)
+  //{
+//    vmregisters->edx = vmregisters->edx & (0xffffffff ^ ((1<<19) | (1<<13)));
+
+  //}
+
   /*
   if (oldeax==0x80000002)
   {
@@ -2568,7 +2517,7 @@ int setVM_CR0(pcpuinfo currentcpuinfo, UINT64 newcr0)
   vmwrite(vm_guest_cr0,newcr0);  //set new cr0 (real one)
 
 
-  sendstringf("guest cr0 has been set to %8\n\r",vmread(0x6004));
+  sendstringf("fake cr0 has been set to %8\n\r",vmread(0x6004));
   sendstringf("real cr0 has been set to %8 (%8)\n\r",newcr0,vmread(vm_guest_cr0));
 
   if  ((vmread(0x6004) & 0x80000001)==0x80000001)
@@ -2618,8 +2567,8 @@ int setVM_CR3(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, UINT64 newcr3)
 
   /* From intel reference docs:
    * If CR4.PCIDE = 1, bit 63 of the source operand to MOV to CR3 determines whether the instruction invalidates
-entries in the TLBs and the paging-structure caches (see Section 4.10.4.1, "Operations that Invalidate TLBs and
-Paging-Structure Caches," in the Intel® 64 and IA-32 Architectures Software Developer's Manual, Volume 3A). The
+entries in the TLBs and the paging-structure caches (see Section 4.10.4.1, “Operations that Invalidate TLBs and
+Paging-Structure Caches,” in the Intel® 64 and IA-32 Architectures Software Developer’s Manual, Volume 3A). The
 instruction does not modify bit 63 of CR3, which is reserved and always 0.
    */
 
@@ -2807,11 +2756,11 @@ int setVM_CR4(pcpuinfo currentcpuinfo, UINT64 newcr4)
 
 
 
- // sendstringf("Set guest CR4 to %x  (old guest was %x)\n\r",newCR4, oldCR4);
+ // sendstringf("Set fake CR4 to %x  (old fake was %x)\n\r",newCR4, oldCR4);
   if (hasUnrestrictedSupport)
     vmwrite(vm_cr4_read_shadow,newCR4 & vmread(vm_cr4_guest_host_mask) ); //set the host bits accordingly
   else
-    vmwrite(vm_cr4_read_shadow,newCR4); //set the guest CR4
+    vmwrite(vm_cr4_read_shadow,newCR4); //set the fake CR4
 
   newCR4=IA32_VMX_CR4_FIXED0 | newCR4; //add the forced bits to it
 
@@ -3164,10 +3113,7 @@ int handleRealModeInt0x15(pcpuinfo currentcpuinfo UNUSED, VMRegisters *vmregiste
 
 
 
-    // Return variable memory amount to avoid detection fingerprinting
-    QWORD tsc = _rdtsc();
-    int memory_kb = 63488 + ((tsc >> 4) & 0x3FF); // 63488-64511 KB (62-63MB range)
-    vmregisters->rax=(vmregisters->rax & 0xffffffff00000000ULL) + memory_kb;
+    vmregisters->rax=(vmregisters->rax & 0xffffffff00000000ULL)+0xfc00; //64MB, if less, well, screw you, why even use dbvm ?
 
     vmwrite(vm_guest_rip,vmread(vm_guest_rip)+instructionsize); //eip to next
     vmwrite(vm_guest_rflags,vmread(vm_guest_rflags) & 0xFFFFFFFFFFFFFFFEULL); //clear carry flag
@@ -4009,7 +3955,7 @@ void speedhack_setspeed(double speed)
     speedhackInitialTime=currentTime;
 
     if (initialoffset<lowestTSC)
-      initialoffset=lowestTSC+850; // Randomized from 1000
+      initialoffset=lowestTSC+1000;
 
     lowestTSC=initialoffset;
     speedhackInitialOffset=initialoffset;
@@ -4059,43 +4005,29 @@ int handle_rdtsc(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   }
 
 
-  if (useSpeedhack)
+  if (adjustTimestampCounters)
   {
-    if (adjustTimestampCounters)
+    if ((realtime-currentcpuinfo->lastTSCTouch)<(QWORD)adjustTimestampCounterTimeout) //todo: and not a forbidden RIP
     {
-      if ((realtime-currentcpuinfo->lastTSCTouch)<(QWORD)adjustTimestampCounterTimeout) //todo: and not a forbidden RIP
-      {
-        // ENHANCED ANTI-DETECTION: Much wider and more natural TSC variation
-        // Remove detectable 15-53 cycle floor and rhythmic patterns
-        QWORD entropy1 = realtime ^ (realtime >> 16);
-        QWORD entropy2 = _rdtsc(); // Fresh entropy source
-        
-        int base_off = 5 + (int)((entropy1 ^ entropy2) & 0x7F); // 5-132 range
-        int jitter = (int)((entropy2 >> 12) & 0x3F);            // 0-63 additional jitter  
-        int timing_variance = (int)((entropy1 >> 24) & 0x1F);   // 0-31 timing variance
-        
-        int off = base_off + jitter + timing_variance; // Total: 5-226 cycle range
-        // Add non-linear component to break pattern detection
-        off = off ^ ((int)(entropy2 >> 4) & 0x7);
-        
-        t=currentcpuinfo->lowestTSC+off;
-        currentcpuinfo->lowestTSC=t;
-      }
-      else
-      {
-        if (lowestTSC<t)
-          lowestTSC=t;
-        currentcpuinfo->lowestTSC=t;
-      }
+
+      int off=20+(realtime & 0xf);
+
+
+      t=currentcpuinfo->lowestTSC+off;
+      //t=lTSC+off;
+
+      //writeMSR(0x838, readMSR(0x838));
+
+      //lockedQwordIncrement(&lowestTSC,off);
+      currentcpuinfo->lowestTSC=t;
+
     }
     else
     {
+      if (lowestTSC<t)
+        lowestTSC=t;
       currentcpuinfo->lowestTSC=t;
     }
-  }
-  else
-  {
-    currentcpuinfo->lowestTSC=t;
   }
 
   if (isAMD)
@@ -4404,25 +4336,15 @@ int handleVMEvent_internal(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FX
       nosendchar[getAPICID()]=0;
       //sendstring("vmcall\n");
 
-      QWORD guestrip = vmread(vm_guest_rip);
-      sendstringf("VMEXIT VMCALL cpu=%d rip=%6 rax=%6 rdx=%6 rcx=%6\n", currentcpuinfo->cpunr, guestrip, vmregisters->rax, vmregisters->rdx, vmregisters->rcx);
-
-      if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
-      {
-        sendstringf("VMEXIT VMCALL invalid password -> #UD\n");
-        return raiseInvalidOpcodeException(currentcpuinfo);
-      }
-
       result = handleVMCall(currentcpuinfo, vmregisters);
-      sendstringf("VMEXIT VMCALL complete cpu=%d result=%6\n", currentcpuinfo->cpunr, vmregisters->rax);
 
       //sendstringf("Returned from handleVMCall, result=%d\n\r",result);
       return result;
     }
 
-  case 19 ... 27 : //VMX instruction called
-  case 0xda00: //special exit reasons (vmresume/vmlaunch failures)
-  case 0xda01:
+    case 19 ... 27 : //VMX instruction called
+    case 0xFE00: //neutralized special exit reasons
+    case 0xFE01:
     {
       ddDrawRectangle(0,DDVerticalResolution-100,100,100,0xff0000);
       //while (1);
@@ -4639,7 +4561,7 @@ int handleVMEvent_internal(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FX
       nosendchar[getAPICID()]=0;
       //sendstringf("%d: %x:%6 (vmm rsp=%6 , freemem=%x)\n", currentcpuinfo->cpunr, vmread(vm_guest_cs),vmread(vm_guest_rip), getRSP(), maxAllocatableMemory());
 
-      vmwrite(vm_preemption_timer_value,9200); // Randomized from 10000
+      vmwrite(vm_preemption_timer_value,10000);
 
       ddDrawRectangle(0,0,100,100,_rdtsc());
       return 0;
@@ -4687,10 +4609,10 @@ int handleVMEvent_internal(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FX
   return 1;
 }
 
-int rchflg=0;
+int reached7c00=0;
 int counter;
 
-criticalSection evtCS;
+criticalSection bla;
 
 int handleVMEvent(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE64 *fxsave)
 {
@@ -4733,14 +4655,7 @@ int handleVMEvent(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE64 *f
     }
 
     counter++;
-    // Enhanced randomized debug output interval to prevent detection fingerprinting
-    QWORD tsc = _rdtsc();
-    QWORD tsc2 = _rdtsc() ^ (tsc << 16); // Double entropy
-    // Much wider range: 2048-65535 with multiple entropy sources
-    int debug_interval = 2048 + (int)((tsc2 ^ (counter << 12)) & 0xFFFF); 
-    // Additional non-linear mixing to prevent pattern analysis
-    debug_interval = debug_interval ^ ((tsc >> 24) & 0x1FF);
-    if (counter % debug_interval==0)
+    if (counter % 8192==0)
       show=1; //show anyhow to show it's alive
 
 
@@ -4784,9 +4699,9 @@ int handleVMEvent(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, FXSAVE64 *f
 
     }
   }
+
+
+
+
   return result;
 }
-
-
-
-

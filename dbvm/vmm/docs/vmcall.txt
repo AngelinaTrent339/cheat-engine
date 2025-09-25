@@ -1,22 +1,24 @@
 vmcall_instruction:
 eax=pointer to information structure
-edx=level1pass (if wrong, immeadiate UD exception is raised)
+edx=level1pass (Password1) (if wrong, immeadiate UD exception is raised)
+ecx=level1pass2 (Password3) (if wrong, immeadiate UD exception is raised)
 
 information struct:
-ULONG structsize
-ULONG level2pass; (if wrong, UD exception is raised)
+ULONG level2pass; (Password2) (if wrong, UD exception is raised)
 ULONG command
+ULONG structsize
 ... Extra data depending on command
  
 
 command:
 0: verify vmm
-returns 0xdaxxxxxxxx in eax , where xxxxxx=version number of vmm
+returns 0xa7xxxxxxxx in eax , where xxxxxx=version number of vmm
 
 1: Change password
 params:
-ULONG password1 : New password for password 1
-ULONG password2 : New password for password 2
+QWORD password1 : New Password1 (register)
+DWORD password2 : New Password2 (struct header)
+QWORD password3 : New Password3 (register)
 
 2: total memory cloak toggle
 This will enable or disable memory cloaking for ALL processes (slow, but safe)
@@ -197,4 +199,4 @@ QWORD addressofthestore
 
 -----
 note:
-result of 0xdadead means that the function was not implemented(yet)
+result of 0xa7dead means that the function was not implemented(yet)

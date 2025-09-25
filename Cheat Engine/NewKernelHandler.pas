@@ -1606,6 +1606,7 @@ function loaddbvmifneeded(reason: string=''): BOOL;  stdcall;
 var
   signed: BOOL;
   r: string;
+  version_result: dword;
 begin
 {$if defined(windows) and not defined(STANDALONECH)}
   result:=isRunningDBVM;
@@ -1630,7 +1631,21 @@ begin
             exit;
 
           LaunchDBVM(-1);
-          if not isRunningDBVM then raise exception.Create(rsDidNotLoadDBVM);
+          if not isRunningDBVM then 
+          begin
+            // Add more detailed error information
+            try
+              version_result := dbvm_version;
+              OutputDebugString('DBVM launched but version check failed. Version result: ' + IntToStr(version_result));
+              raise exception.Create(rsDidNotLoadDBVM + ' (DBVM launched but version check failed - returned version: ' + IntToStr(version_result) + '. Possible password mismatch or system incompatibility)');
+            except
+              on e: Exception do
+              begin
+                OutputDebugString('DBVM launched but version check failed with exception: ' + e.message);
+                raise exception.Create(rsDidNotLoadDBVM + ' (DBVM launched but version check failed with exception: ' + e.message + ')');
+              end;
+            end;
+          end;
           result:=true;
 
           if (MainThreadID=GetCurrentThreadId) then
@@ -1658,7 +1673,11 @@ end;
 function isRunningDBVM: boolean;
 begin
 {$if defined(windows) and not defined(STANDALONECH)}
-  result:=dbvm_version>0;
+  try
+    result:=dbvm_version>0;
+  except
+    result:=false;
+  end;
 {$else}
   result:=false;
 {$endif}
@@ -2286,10 +2305,35 @@ begin
 end;
 
 procedure OutputDebugString(msg: string);
+var
+  f: TextFile;
+  debugFile: string;
 begin
 {$ifndef NoODS}
   {$ifdef windows}
     windows.outputdebugstring(pchar(msg));
+    
+    // Also write to debug log file - create if needed for DBVM debugging
+    try
+      debugFile := 'cedebug.txt';
+      
+      // Create the file if it doesn't exist
+      if not FileExists(debugFile) then
+      begin
+        AssignFile(f, debugFile);
+        Rewrite(f);
+        WriteLn(f, 'Debug log created: ' + DateTimeToStr(Now));
+        CloseFile(f);
+      end;
+      
+      // Append the message
+      AssignFile(f, debugFile);
+      Append(f);
+      WriteLn(f, DateTimeToStr(Now) + ': ' + msg);
+      CloseFile(f);
+    except
+      // Ignore file errors to prevent infinite recursion
+    end;
   {$endif}
 
   {$ifdef android}

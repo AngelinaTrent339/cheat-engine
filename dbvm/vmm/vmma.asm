@@ -75,7 +75,7 @@ extramemory:        dq 0 ;physical address of a contiguous block of physical mem
 extramemorysize:    dq 0 ;number of pages in extramemory
 contiguousmemoryPA: dq 0 ;physical address of a contiguous block of physical memory available for device access
 contiguousmemorysize:dq 0 ;number of pages left in contiguousmemoryPA
-dbvmversion:        dq 37
+dbvmversion:        dq 11
 exportlist:         dq 0
 ;uefibooted:         dq 0 ;if set it means this has to launch the AP cpu's as well
 
@@ -142,7 +142,6 @@ mov [0x7170],r15
 
 
 afterbootvarcollection:
-call init_vmcall_instr
 call vmm_entry
 
 vmm_entry_exit:
@@ -168,35 +167,6 @@ vmcall_intel:
   vmcall
   ret
 
-;initialize vmcall_instr based on CPUID vendor string
-global init_vmcall_instr
-init_vmcall_instr:
-  push rax
-  push rbx
-  push rcx
-  push rdx
-  xor eax,eax
-  cpuid
-  ; check for 'AuthenticAMD' (EBX, EDX, ECX)
-  cmp ebx,0x68747541
-  jne .notamd
-  cmp edx,0x69746e65
-  jne .notamd
-  cmp ecx,0x444d4163
-  jne .notamd
-  lea rax,[rel vmcall_amd]
-  mov [rel vmcall_instr], rax
-  jmp .done
-.notamd:
-  lea rax,[rel vmcall_intel]
-  mov [rel vmcall_instr], rax
-.done:
-  pop rdx
-  pop rcx
-  pop rbx
-  pop rax
-  ret
-
 global vmcall_instr
 vmcall_instr: dq vmcall_intel
 
@@ -206,17 +176,16 @@ vmcalltest_asm:
   sub rsp,12
 
   mov dword [rsp],12
-  ; load Password2 dynamically
+  ; use current Password2 from VMM instead of legacy default
   extern Password2
-  mov eax, dword [rel Password2]
-  mov dword [rsp+4], eax
+  mov eax,[rel Password2]
+  mov dword [rsp+4],eax
   mov dword [rsp+8],0
 
   ;xchg bx,bx
   mov rax,rsp
-  ; load Password1 dynamically
-  extern Password1
-  mov rdx, qword [rel Password1]
+  ; use current Password1 from VMM instead of legacy default
+  mov rdx,[rel Password1]
   call [vmcall_instr]
 
   add rsp,8+12
@@ -230,9 +199,8 @@ global _vmcall
 _vmcall:
   sub rsp,8
   mov rax,rdi  ;data
-  ; load Password1/Password3 dynamically
-  mov rdx, qword [rel Password1]  ;password1
-  mov rcx, qword [rel Password3]  ;password3
+  mov rdx,[Password1]  ;password1
+  mov rcx,[Password3]
   call [vmcall_instr]
   add rsp,8
   ret
@@ -247,9 +215,9 @@ vmcall_setintredirects:
   sub rsp,0x20
 
   mov dword [rsp],0x1c ;size of struct
-  ; load Password2 dynamically
-  mov eax, dword [rel Password2]
-  mov dword [rsp+4], eax ;p2
+  ; use current Password2
+  mov eax,[rel Password2]
+  mov dword [rsp+4],eax ;p2
   mov dword [rsp+8],9 ;VMCALL_REDIRECTINT1
 
   mov dword [rsp+0xc],1 ;idt redirect instead of intredirect
@@ -261,7 +229,8 @@ vmcall_setintredirects:
 
    ;int3
   mov rax,rsp
-  mov rdx, qword [rel Password1] ;p1
+  ; use current Password1
+  mov rdx,[rel Password1] ;p1
   call [vmcall_instr]
 
   mov rax,rsp
@@ -798,10 +767,10 @@ fxrstor [rsp]
 
 mov rsp,rbp
 
-cmp ax,0xda00
+cmp ax,0xFE00
 je vmxloop_guestlaunch
 
-cmp ax,0xda01
+cmp ax,0xce01
 je vmxloop_guestresume
 
 cmp al,1  ;returnvalue of 1 = quit vmx
@@ -880,7 +849,7 @@ vmlaunch
 ;restore state of vmm
 
 
-mov dword [fs:0x10],0xda00 ;exitreason 0xda00
+mov dword [fs:0x10],0xFE00 ;exitreason neutral
 jmp vmxloop_vmexit
 
 vmxloop_guestresume:
@@ -906,7 +875,7 @@ vmresume
 db 0xf1 ;debug
 
 ;never executed unless on error
-mov dword [fs:0x10],0xda01 ;exitreason 0xda01  (resume fail)
+mov dword [fs:0x10],0xFE01 ;exitreason neutral (resume fail)
 jmp vmxloop_vmexit
 
 vmxloop_exitvm:  ;(esp-68)
@@ -1422,7 +1391,7 @@ global stopautomation
 ;void stopautomation(void);
 ;-------------------------;
 stopautomation:
-mov rax,0xdadadada
+mov rax,0xFEFEFEFE
 VMCALL
 ret
 db 0xcc
@@ -3413,14 +3382,14 @@ global realmode_inthooks_end
 realmode_inthooks_end:
 
 
-dd 0x00ce1337
+dd 0x00fe1337
 db 0x90
 db 0x90
 db 0x90
 
 db 0xea
-db 0xda
-db 0xda
+db 0xce
+db 0xce
 db 0xaa
 db 0xbb
 

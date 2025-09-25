@@ -674,7 +674,7 @@ int cinthandler(unsigned long long *stack, int intnr) //todo: move to it's own s
         return errorcode;
 
       case '2':
-        CheckCRCValues();
+        //CheckCRCValues(); // disabled to avoid signature validation
         break;
 
       case '3':

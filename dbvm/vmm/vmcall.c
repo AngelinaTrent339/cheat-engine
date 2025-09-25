@@ -1,10 +1,9 @@
 #include "main.h"
 #include "vmpaging.h"
 #include "vmmhelper.h"
-#include "common.h"
-#include "eptstructs.h"
 #include "vmeventhandler.h"
 #include "osspecific.h"
+#include "common.h"
 #include "mm.h"
 #include "vmcall.h"
 #include "msrnames.h"
@@ -15,6 +14,7 @@
 
 #include "vbe3.h"
 #include "psod32.h"
+#include "eptstructs.h"
 #include "epthandler.h"
 #include "displaydebug.h"
 
@@ -891,42 +891,33 @@ VMSTATUS vmcall_traceonbp_retrievelog(pcpuinfo currentcpuinfo, VMRegisters *vmre
   return ept_traceonbp_retrievelog(params->results, &params->resultsize, &params->copied, errorcode);
 }
 
-VMSTATUS vmcall_watch_retrievelog(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, ULONG *vmcall_instruction)
+VMSTATUS vmcall_watch_retrievelog(pcpuinfo currentcpuinfo, VMRegisters *vmregisters,  PVMCALL_WATCH_RETRIEVELOG_PARAM params)
 {
-  int ID = vmcall_instruction[3];
-  QWORD results = *(QWORD*)&vmcall_instruction[4];
-  DWORD *copied_ptr = &vmcall_instruction[7];
+  //int o=(QWORD)(&params->copied)-(QWORD)params;
+  //sendstringf("params->copied is at offset %d\n", o);
   QWORD *errorcode;
   if (isAMD)
     errorcode=&currentcpuinfo->vmcb->RAX;
   else
     errorcode=&vmregisters->rax;
 
-  DWORD *resultsize_ptr = &vmcall_instruction[6];
-  return ept_watch_retrievelog(ID, results, resultsize_ptr, copied_ptr, errorcode);
+  return ept_watch_retrievelog(params->ID, params->results, &params->resultsize, &params->copied, errorcode);
 }
 
 
 
-int vmcall_watch_delete(ULONG *vmcall_instruction)
+int vmcall_watch_delete(PVMCALL_WATCH_DISABLE_PARAM params)
 {
   int r=1;
-  int ID = vmcall_instruction[3];  // ID after VMCALL_BASIC
+  int ID=params->ID;
 
   r=ept_watch_deactivate(ID);
   return r;
 }
 
-int vmcall_watch_activate(ULONG *vmcall_instruction, int Type)
+int vmcall_watch_activate(PVMCALL_WATCH_PARAM params, int Type)
 {
-  QWORD physicalAddress = *(QWORD*)&vmcall_instruction[3];  // After VMCALL_BASIC
-  int size = vmcall_instruction[5];
-  int options = vmcall_instruction[6]; 
-  int maxEntryCount = vmcall_instruction[7];
-  int *id_ptr = (int*)&vmcall_instruction[8];
-  QWORD optionalField1 = *(QWORD*)&vmcall_instruction[9];
-  QWORD optionalField2 = *(QWORD*)&vmcall_instruction[11];
-  return ept_watch_activate(physicalAddress, size, Type, options, maxEntryCount, id_ptr, optionalField1, optionalField2);
+  return ept_watch_activate(params->PhysicalAddress, params->Size, Type, params->Options, params->MaxEntryCount, &params->ID, params->OptionalField1, params->OptionalField2);
 }
 
 int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, ULONG *vmcall_instruction)
@@ -934,27 +925,21 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
   int error;
   QWORD pagefaultaddress;
 
-  //sendstringf("_handleVMCallInstruction (%d)\n", vmcall_instruction[2]);
+  //sendstringf("_handleVMCallInstruction (%d)\n", vmcall_instruction[1]);
 
-  currentcpuinfo->LastVMCall=vmcall_instruction[2];
+  currentcpuinfo->LastVMCall=vmcall_instruction[1];
 
-  switch (vmcall_instruction[2])
+  switch (vmcall_instruction[1])
   {
     case VMCALL_GETVERSION: //get version
-    {
-      //sendstring("Version request\n\r");
-      // Allow user-mode callers as long as passwords are correct. Return 0 otherwise.
-      // Return real version only when proper passwords are provided. Probes get 0.
-      if ((vmregisters->rdx==Password1) && (vmregisters->rcx==Password3) && (vmcall_instruction[1]==Password2))
+      // return a version where the high byte is derived from the runtime passwords
+      // to avoid static signatures
       {
-        // Obfuscate version response with dynamic XOR based on passwords
-        QWORD version_mask = (Password1 ^ Password3) & 0xFF000000ULL;
-        vmregisters->rax = version_mask + dbvmversion;
+        QWORD highmask=((Password1 ^ Password3) & 0xff000000ULL);
+        QWORD lowver=(dbvmversion & 0x00ffffffULL);
+        vmregisters->rax=highmask | lowver;
       }
-      else
-        vmregisters->rax=0;
       break;
-    }
 
     case VMCALL_CHANGEPASSWORD: //change password
     {
@@ -965,12 +950,12 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
         DWORD Password2;
         QWORD Password3;
       }  __attribute__((__packed__)) *PVMCALL_CHANGEPASSWORD_PARAM;
+      PVMCALL_CHANGEPASSWORD_PARAM p=(PVMCALL_CHANGEPASSWORD_PARAM)vmcall_instruction;
 
       sendstring("Password change\n\r");
-      // Skip struct typedef, access directly from vmcall_instruction
-      Password1 = *(QWORD*)&vmcall_instruction[3];  // Password1 after VMCALL_BASIC
-      Password2 = vmcall_instruction[5];             // Password2
-      Password3 = *(QWORD*)&vmcall_instruction[6];   // Password3
+      Password1 = p->Password1;
+      Password2 = p->Password2;
+      Password3 = p->Password3;
 
       sendstringf("Password1=%6\n\r",Password1);
       sendstringf("Password2=%8\n\r",Password2);
@@ -981,7 +966,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     }
 
     case 2: //toggle memory cloak
-      vmregisters->rax = 0xdadead; //not implemented
+      vmregisters->rax = 0xFEDEAD; //not implemented
       break;
 
     case VMCALL_READ_PHYSICAL_MEMORY: //read physical memory
@@ -1003,7 +988,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       {
         //intercept these msr's as well
 
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1030,7 +1015,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1077,7 +1062,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1103,16 +1088,13 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     case 8: //choose os
     {
       sendstring("Not yet implemented\n\r");
-      vmregisters->rax = 0xdadead;
+      vmregisters->rax = 0xFEDEAD;
       break;
     }
 
     case VMCALL_REDIRECTINT1: //redirect int1
     {
       sendstring("VMCALL_REDIRECTINT1\n\r");
-      
-      // Rely on password enforcement only
-      
       if (vmcall_instruction[3] == 0)
       {
         int1redirection=vmcall_instruction[4];
@@ -1149,7 +1131,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
       ULONG cs=vmcall_instruction[3];
@@ -1174,7 +1156,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1194,7 +1176,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1212,7 +1194,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1232,7 +1214,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1260,7 +1242,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       UINT64 newcr3=*(UINT64 *)&vmcall_instruction[3];
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1293,7 +1275,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
       vmregisters->rax = raisePrivilege(currentcpuinfo);
@@ -1305,9 +1287,6 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
 
       sendstring("VMCALL_REDIRECTINT14\n\r");
-      
-      // Rely on password enforcement only
-      
       if (vmcall_instruction[3] == 0)
       {
         int14redirection=vmcall_instruction[4];
@@ -1349,9 +1328,6 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     case VMCALL_REDIRECTINT3: //redirect int3
     {
       sendstring("VMCALL_REDIRECTINT3\n\r");
-      
-      // Rely on password enforcement only
-      
       if (vmcall_instruction[3] == 0)
       {
         int3redirection=vmcall_instruction[4];
@@ -1415,7 +1391,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1441,7 +1417,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1454,7 +1430,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1467,7 +1443,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1480,7 +1456,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1498,7 +1474,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xFEDEAD;
         break;
       }
 
@@ -1513,7 +1489,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xa7dead;
         break;
       }
 
@@ -1526,7 +1502,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xa7dead;
         break;
       }
 
@@ -1539,7 +1515,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (isAMD)
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xa7dead;
         break;
       }
 
@@ -1604,15 +1580,14 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       sendstringf("VMCALL_WATCH_WRITES\n");
       if (hasEPTsupport || hasNPsupport)
       {
-        vmregisters->rax=vmcall_watch_activate(vmcall_instruction, EPTW_WRITE); //write
-        int *id_ptr = (int*)&vmcall_instruction[8];
-        sendstringf("vmcall_watch_activate returned %d and ID %d\n", vmregisters->rax, *id_ptr);
+        vmregisters->rax=vmcall_watch_activate((PVMCALL_WATCH_PARAM)vmcall_instruction,EPTW_WRITE); //write
+        sendstringf("vmcall_watch_activate returned %d and ID %d\n", vmregisters->rax, ((PVMCALL_WATCH_PARAM)vmcall_instruction)->ID);
 
       }
       else
       {
         sendstringf("hasEPTsupport==0\n");
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xa7dead;
       }
       break;
     }
@@ -1622,11 +1597,11 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       sendstringf("VMCALL_WATCH_READS\n");
       if (hasEPTsupport || hasNPsupport)
       {
-        vmregisters->rax=vmcall_watch_activate(vmcall_instruction, EPTW_READWRITE); //read
+        vmregisters->rax=vmcall_watch_activate((PVMCALL_WATCH_PARAM)vmcall_instruction,EPTW_READWRITE); //read
       }
       else
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xa7dead;
       }
       break;
     }
@@ -1636,11 +1611,11 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       sendstringf("VMCALL_WATCH_EXECUTES\n");
       if (hasEPTsupport || hasNPsupport)
       {
-        vmregisters->rax=vmcall_watch_activate(vmcall_instruction, EPTW_EXECUTE); //read
+        vmregisters->rax=vmcall_watch_activate((PVMCALL_WATCH_PARAM)vmcall_instruction,EPTW_EXECUTE); //read
       }
       else
       {
-        vmregisters->rax = 0xdadead;
+        vmregisters->rax = 0xa7dead;
       }
       break;
     }
@@ -1648,14 +1623,14 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     case VMCALL_WATCH_DELETE:
     {
       sendstringf("VMCALL_WATCH_DELETE\n");
-      vmregisters->rax=vmcall_watch_delete(vmcall_instruction);
+      vmregisters->rax=vmcall_watch_delete((PVMCALL_WATCH_DISABLE_PARAM)vmcall_instruction);
       break;
     }
 
     case VMCALL_WATCH_RETRIEVELOG:
     {
       //sendstringf("VMCALL_WATCH_RETRIEVELOG\n");
-      return vmcall_watch_retrievelog(currentcpuinfo, vmregisters, vmcall_instruction);
+      return vmcall_watch_retrievelog(currentcpuinfo, vmregisters, (PVMCALL_WATCH_RETRIEVELOG_PARAM)vmcall_instruction);
     }
 
     case VMCALL_CLOAK_ACTIVATE:
@@ -1663,7 +1638,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       if (hasEPTsupport || hasNPsupport)
         vmregisters->rax=ept_cloak_activate(((PVMCALL_CLOAK_ACTIVATE_PARAM)vmcall_instruction)->physicalAddress,((PVMCALL_CLOAK_ACTIVATE_PARAM)vmcall_instruction)->mode);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xFEDEAD;
 
       break;
     }
@@ -1685,7 +1660,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
       }
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xFEDEAD;
 
       break;
     }
@@ -1698,7 +1673,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
                                                   ((PVMCALL_CLOAK_WHITELIST)vmcall_instruction)->CR3,
                                                   ((PVMCALL_CLOAK_WHITELIST)vmcall_instruction)->RIP);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xFEDEAD;
 
       break;
     }
@@ -1710,7 +1685,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
                                                        ((PVMCALL_CLOAK_WHITELIST)vmcall_instruction)->CR3,
                                                        ((PVMCALL_CLOAK_WHITELIST)vmcall_instruction)->RIP);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xFEDEAD;
 
       break;
     }
@@ -1721,7 +1696,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
         vmregisters->rax=ept_cloak_startaccesswatch(((PVMCALL_CLOAKEX_ACTIVATE_PARAM)vmcall_instruction)->physicalAddress,
                                                     ((PVMCALL_CLOAKEX_ACTIVATE_PARAM)vmcall_instruction)->maxcount);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xFEDEAD;
 
       break;
     }
@@ -1732,7 +1707,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       if (hasEPTsupport)
         vmregisters->rax=ept_cloak_fetchaccesswatchresults(((PVMCALL_CLOAKEX_ACTIVATE_PARAM)vmcall_instruction)->physicalAddress);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xFEDEAD;
 
       break;
     }
@@ -1742,7 +1717,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       if (hasEPTsupport)
         vmregisters->rax=ept_cloak_stopaccesswatch(((PVMCALL_CLOAKEX_ACTIVATE_PARAM)vmcall_instruction)->physicalAddress);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xa7dead;
 
       break;
     }*/
@@ -1753,7 +1728,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       if (hasEPTsupport || hasNPsupport)
         vmregisters->rax=ept_cloak_deactivate(((PVMCALL_CLOAK_DEACTIVATE_PARAM)vmcall_instruction)->physicalAddress);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xa7dead;
 
       break;
     }
@@ -1763,7 +1738,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       if (hasEPTsupport || hasNPsupport)
         return ept_cloak_readOriginal(currentcpuinfo, vmregisters, ((PVMCALL_CLOAK_READ_PARAM)vmcall_instruction)->physicalAddress, ((PVMCALL_CLOAK_READ_PARAM)vmcall_instruction)->destination);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xa7dead;
 
       break;
     }
@@ -1773,7 +1748,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       if (hasEPTsupport || hasNPsupport)
         return ept_cloak_writeOriginal(currentcpuinfo, vmregisters, ((PVMCALL_CLOAK_WRITE_PARAM)vmcall_instruction)->physicalAddress, ((PVMCALL_CLOAK_WRITE_PARAM)vmcall_instruction)->source);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xa7dead;
 
       break;
     }
@@ -1783,7 +1758,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       if (hasEPTsupport || hasNPsupport)
         vmregisters->rax=ept_cloak_changeregonbp(((PVMCALL_CLOAK_CHANGEREG_PARAM)vmcall_instruction)->physicalAddress, &((PVMCALL_CLOAK_CHANGEREG_PARAM)vmcall_instruction)->changereginfo);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xa7dead;
 
       break;
     }
@@ -1793,7 +1768,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       if (hasEPTsupport || hasNPsupport)
         vmregisters->rax=ept_cloak_removechangeregonbp(((PVMCALL_CLOAK_REMOVECHANGEREG_PARAM)vmcall_instruction)->physicalAddress);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xa7dead;
       break;
     }
 
@@ -1802,14 +1777,12 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (hasEPTsupport || hasNPsupport)
       {
+        PVMCALL_CLOAK_TRACEONBP_PARAM p=(PVMCALL_CLOAK_TRACEONBP_PARAM)vmcall_instruction;
 
-        QWORD physicalAddress = *(QWORD*)&vmcall_instruction[3];
-        DWORD flags = vmcall_instruction[5];
-        DWORD tracecount = vmcall_instruction[6];
-        vmregisters->rax=ept_cloak_traceonbp(physicalAddress, flags, tracecount);
+        vmregisters->rax=ept_cloak_traceonbp(p->physicalAddress, p->flags, p->tracecount);
       }
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xa7dead;
 
       break;
     }
@@ -1818,18 +1791,12 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       if (hasEPTsupport || hasNPsupport)
       {
-        // Skip the complex struct typedef and access data directly from vmcall_instruction
-        DWORD *count_ptr = &vmcall_instruction[3];      // count field
-        DWORD *maxcount_ptr = &vmcall_instruction[4];   // maxcount field
+        PVMCALL_CLOAK_TRACEONBP_GETSTATUS_PARAM p=(PVMCALL_CLOAK_TRACEONBP_GETSTATUS_PARAM)vmcall_instruction;
         nosendchar[getAPICID()]=0;
-
-        sendstringf("VMCALL_CLOAK_TRACEONBP_GETSTATUS:\nbefore count=%d maxcount=%d", *count_ptr, *maxcount_ptr);
-
-        vmregisters->rax=ept_cloak_traceonbp_getstatus(count_ptr, maxcount_ptr);
-        sendstringf("after count=%d maxcount=%d", *count_ptr, *maxcount_ptr);
+        vmregisters->rax=ept_cloak_traceonbp_getstatus(&p->count,&p->maxcount);
       }
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xFEDEAD;
       break;
     }
 
@@ -1840,7 +1807,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       if (hasEPTsupport || hasNPsupport)
         vmregisters->rax=ept_cloak_traceonbp_stoptrace();
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xa7dead;
 
       break;
     }
@@ -1851,14 +1818,13 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       if (hasEPTsupport || hasNPsupport)
         vmregisters->rax=ept_cloak_traceonbp_remove(((PVMCALL_CLOAK_TRACEONBP_REMOVE_PARAM)vmcall_instruction)->force);
       else
-        vmregisters->rax=0xdadead;
+        vmregisters->rax=0xa7dead;
       break;
     }
 
     case VMCALL_CLOAK_TRACEONBP_READLOG:
     {
       nosendchar[getAPICID()]=0;
-      sendstringf("VMCALL_CLOAK_TRACEONBP_READLOG\n");
       return vmcall_traceonbp_retrievelog(currentcpuinfo, vmregisters, (PVMCALL_TRACEONBP_RETRIEVELOG_PARAM)vmcall_instruction);
     }
 
@@ -1979,33 +1945,28 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     {
       int error;
       QWORD pagefaultaddress;
-      // Skip struct typedef, access directly from vmcall_instruction
-      int type = vmcall_instruction[3];
-      QWORD virtualAddress = *(QWORD*)&vmcall_instruction[4];
-      DWORD bytesize = vmcall_instruction[6];
-      QWORD *internalAddress_ptr = (QWORD*)&vmcall_instruction[7];
-      DWORD *bytescopied_ptr = &vmcall_instruction[9];
+      PVMCALL_REGISTER_PLUGIN_PARAM p=(PVMCALL_REGISTER_PLUGIN_PARAM)vmcall_instruction;
 
-      if (*internalAddress_ptr==0)
+      if (p->internalAddress==0)
       {
         QWORD FullPages;
         getTotalFreeMemory(&FullPages);
 
-        if (bytesize>(FullPages*4096))
+        if (p->bytesize>(FullPages*4096))
         {
           vmregisters->rax=1; //not enough memory
           break;
         }
 
-        *internalAddress_ptr=(QWORD)malloc(bytesize);
-        *bytescopied_ptr=0;
+        p->internalAddress=(QWORD)malloc(p->bytesize);
+        p->bytescopied=0;
       }
 
-      QWORD startaddressSource=virtualAddress+(*bytescopied_ptr);
-      int blocksize=bytesize-(*bytescopied_ptr);
+      QWORD startaddressSource=p->virtualAddress+p->bytescopied;
+      int blocksize=p->bytesize-p->bytescopied;
 
       void *source=mapVMmemoryEx(currentcpuinfo, startaddressSource, blocksize, &error, &pagefaultaddress, 1);
-      void *destination=(void *)((*internalAddress_ptr)+(*bytescopied_ptr));
+      void *destination=(void *)(p->internalAddress+p->bytescopied);
 
       if (error)
       {
@@ -2022,18 +1983,18 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       {
         //copy what you can
         copymem(destination, source, blocksize);
-        *bytescopied_ptr+=blocksize;
+        p->bytescopied+=blocksize;
 
         unmapVMmemory(source, blocksize);
         source=NULL;
 
-        if (*bytescopied_ptr==bytesize)
+        if (p->bytescopied==p->bytesize)
         {
           //copy done
-          if (type==0)
-            dbvm_plugin_exit_pre=(DBVM_PLUGIN_EXIT_PRE *)(*internalAddress_ptr);
+          if (p->type==0)
+            dbvm_plugin_exit_pre=(DBVM_PLUGIN_EXIT_PRE *)p->internalAddress;
           else
-            dbvm_plugin_exit_post=(DBVM_PLUGIN_EXIT_POST *)(*internalAddress_ptr);
+            dbvm_plugin_exit_post=(DBVM_PLUGIN_EXIT_POST *)p->internalAddress;
 
           vmregisters->rax=0; //success
           break;
@@ -2078,36 +2039,28 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
     case VMCALL_ADD_MEMORY:
     {
-      // Skip the complex struct typedef and access data directly from vmcall_instruction
-      DWORD total_size = vmcall_instruction[0];  // Total structure size
-      DWORD vmcall_basic_size = 12;              // sizeof(VMCALL_BASIC) = 3 * sizeof(DWORD)
-      int pagecount = (total_size - vmcall_basic_size) / 8; // Each page is 8 bytes (QWORD)
-      QWORD *physical_pages = (QWORD*)&vmcall_instruction[3]; // PhysicalPages starts after VMCALL_BASIC
+      PVMCALL_ADD_MEMORY_PARAM p=(PVMCALL_ADD_MEMORY_PARAM)vmcall_instruction;
+      int pagecount=(p->vmcall.size-sizeof(VMCALL_ADD_MEMORY_PARAM)) / 8;
 
       nosendchar[getAPICID()]=0;
       sendstringf("VMCALL_ADD_MEMORY\n");
-      mmAddPhysicalPageListToDBVM(physical_pages, pagecount,0);
+      mmAddPhysicalPageListToDBVM(p->PhysicalPages, pagecount,0);
       vmregisters->rax = pagecount; //0;
       break;
     }
 
     case VMCALL_SETTSCADJUST:
     {
-      // Skip the complex struct typedef and access data directly from vmcall_instruction
-      int enabled = vmcall_instruction[3];
-      int timeout = vmcall_instruction[4];
-      
-      adjustTimestampCounterTimeout=timeout;
-      adjustTimestampCounters=enabled;
+      PVMCALL_SETTSCADJUST_PARAM p=(PVMCALL_SETTSCADJUST_PARAM)vmcall_instruction;
+      adjustTimestampCounterTimeout=p->timeout;
+      adjustTimestampCounters=p->enabled;
       break;
     }
 
     case VMCALL_SETSPEEDHACK:
     {
-      // Skip the complex struct typedef and access data directly from vmcall_instruction
-      double *speedhackspeed_ptr = (double*)&vmcall_instruction[3]; // double starts after VMCALL_BASIC
-      
-      speedhack_setspeed(*speedhackspeed_ptr);
+      PVMCALL_SETSPEEDHACK_PARAM p=(PVMCALL_SETSPEEDHACK_PARAM)vmcall_instruction;
+      speedhack_setspeed(p->speedhackspeed);
       break;
     }
 
@@ -2163,9 +2116,8 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     	int globaleventcounter[56];
     	QWORD totalevents=0;
     	pcpuinfo c=firstcpuinfo;
-    	// Skip struct typedef, access directly from vmcall_instruction
-    	int *eventcounter_ptr = (int*)&vmcall_instruction[3];  // eventcounter array after VMCALL_BASIC
-    	copymem(eventcounter_ptr, &currentcpuinfo->eventcounter[0], sizeof(int)*56);
+    	PVMCALL_GET_STATISTICS_PARAM p=(PVMCALL_GET_STATISTICS_PARAM)vmcall_instruction;
+    	copymem(&p->eventcounter[0],&currentcpuinfo->eventcounter[0],sizeof(int)*56);
 
     	zeromemory(&globaleventcounter[0],sizeof(int)*56);
     	while (c)
@@ -2180,8 +2132,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     		c=c->next;
     	}
 
-    	int *globaleventcounter_ptr = (int*)&vmcall_instruction[3 + 56];  // globaleventcounter array after eventcounter
-    	copymem(globaleventcounter_ptr, &globaleventcounter[0], sizeof(int)*56);
+    	copymem(&p->globaleventcounter[0],&globaleventcounter[0],sizeof(int)*56);
 
 
     	vmregisters->rax=totalevents;
@@ -2191,12 +2142,19 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
     case VMCALL_WATCH_GETSTATUS:
     {
-      // Skip struct typedef, access directly from vmcall_instruction  
-      EPTWatchLogData *last_ptr = (EPTWatchLogData*)&vmcall_instruction[3];
-      EPTWatchLogData *best_ptr = (EPTWatchLogData*)&vmcall_instruction[3 + sizeof(EPTWatchLogData)/4];
-      
-      *last_ptr = lastSeenEPTWatch;
-      *best_ptr = lastSeenEPTWatchVerySure;
+      typedef struct
+      {
+        VMCALL_BASIC vmcall;
+        EPTWatchLogData last;
+        EPTWatchLogData best;
+      } __attribute__((__packed__)) *PVMCALL_WATCH_GETSTATUS_PARAM;
+
+
+      PVMCALL_WATCH_GETSTATUS_PARAM p=(PVMCALL_WATCH_GETSTATUS_PARAM)vmcall_instruction;
+
+
+      p->last=lastSeenEPTWatch;
+      p->best=lastSeenEPTWatchVerySure;
       vmregisters->rax = 0;
       break;
     }
@@ -2210,53 +2168,70 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
     case VMCALL_GETBROKENTHREADENTRYSHORT:
     {
-      // Skip the complex struct typedef and access data directly from vmcall_instruction
-      int id = vmcall_instruction[3];
-      int *watchid_ptr = (int*)&vmcall_instruction[4];
-      int *status_ptr = (int*)&vmcall_instruction[5];
-      DWORD *cs_ptr = (DWORD*)&vmcall_instruction[6];
-      QWORD *rip_ptr = (QWORD*)&vmcall_instruction[7]; // Note: QWORD spans 2 ULONG slots
-      QWORD *cr3_ptr = (QWORD*)&vmcall_instruction[9];
-      QWORD *fsbase_ptr = (QWORD*)&vmcall_instruction[11];
-      QWORD *gsbase_ptr = (QWORD*)&vmcall_instruction[13];
-      QWORD *gsbase_kernel_ptr = (QWORD*)&vmcall_instruction[15];
-      QWORD *heartbeat_ptr = (QWORD*)&vmcall_instruction[17];
+      typedef struct
+      {
+        VMCALL_BASIC vmcall;
+        int id;
+        int Watchid;
+        int Status;
+        DWORD CS;
+        QWORD RIP;
+        QWORD CR3;
+        QWORD FSBASE;
+        QWORD GSBASE;
+        QWORD GSBASE_KERNEL;
+        QWORD Heartbeat;
 
-      vmregisters->rax=ept_getBrokenThreadEntryShort(id, watchid_ptr, status_ptr, cr3_ptr, fsbase_ptr, gsbase_ptr, gsbase_kernel_ptr, cs_ptr, rip_ptr, heartbeat_ptr);
+      }  __attribute__((__packed__)) *PGETBROKENTHREADENTRYSHORT_PARAM;
+      PGETBROKENTHREADENTRYSHORT_PARAM p=(PGETBROKENTHREADENTRYSHORT_PARAM)vmcall_instruction;
+
+      vmregisters->rax=ept_getBrokenThreadEntryShort(p->id, &p->Watchid, &p->Status, &p->CR3, &p->FSBASE, &p->GSBASE, &p->GSBASE_KERNEL, &p->CS, &p->RIP, &p->Heartbeat);
       break;
     }
 
     case VMCALL_GETBROKENTHREADENTRYFULL:
     {
-      // Skip the complex struct typedef and access data directly from vmcall_instruction
-      int id = vmcall_instruction[3];
-      int *watchid_ptr = (int*)&vmcall_instruction[4];
-      int *status_ptr = (int*)&vmcall_instruction[5]; 
-      void *entry_ptr = (void*)&vmcall_instruction[6]; // PageEventExtended starts at offset 6
-      
-      vmregisters->rax=ept_getBrokenThreadEntryFull(id, watchid_ptr, status_ptr, (PPageEventExtended)entry_ptr);
+      typedef struct
+      {
+        VMCALL_BASIC vmcall;
+        int id;
+        int watchid;
+        int status;
+        PageEventExtended entry;
+      }  __attribute__((__packed__)) *PGETBROKENTHREADENTRYFULL_PARAM;
+      PGETBROKENTHREADENTRYFULL_PARAM p=(PGETBROKENTHREADENTRYFULL_PARAM)vmcall_instruction;
+
+      vmregisters->rax=ept_getBrokenThreadEntryFull(p->id, &p->watchid,  &p->status, &p->entry);
       break;
     }
 
     case VMCALL_SETBROKENTHREADENTRYFULL:
     {
-      // Skip the complex struct typedef and access data directly from vmcall_instruction
-      int id = vmcall_instruction[3];
-      void *entry_ptr = (void*)&vmcall_instruction[4]; // PageEventExtended starts at offset 4 (after vmcall header + id)
-      
-      vmregisters->rax=ept_setBrokenThreadEntryFull(id, (PPageEventExtended)entry_ptr);
+      typedef struct
+      {
+        VMCALL_BASIC vmcall;
+        int id;
+        PageEventExtended entry;
+      }  __attribute__((__packed__)) *PGETBROKENTHREADENTRYFULL_PARAM;
+      PGETBROKENTHREADENTRYFULL_PARAM p=(PGETBROKENTHREADENTRYFULL_PARAM)vmcall_instruction;
+
+      vmregisters->rax=ept_setBrokenThreadEntryFull(p->id, &p->entry);
       break;
     }
 
     case VMCALL_RESUMEBROKENTHREAD:
     {
-      // Skip the complex struct typedef and access data directly from vmcall_instruction
-      DWORD id = vmcall_instruction[3];
-      DWORD continueMethod = vmcall_instruction[4];
+      typedef struct
+      {
+        VMCALL_BASIC vmcall;
+        DWORD id;
+        DWORD continueMethod;
+      }  __attribute__((__packed__)) *PVMCALL_RESUMEBROKENTHREAD_PARAM;
+      PVMCALL_RESUMEBROKENTHREAD_PARAM p=(PVMCALL_RESUMEBROKENTHREAD_PARAM)vmcall_instruction;
 
       nosendchar[getAPICID()]=0;
-      sendstringf("VMCALL_RESUMEBROKENTHREAD %d\n", id);
-      vmregisters->rax=ept_resumeBrokenThread(id, continueMethod);
+      sendstringf("VMCALL_RESUMEBROKENTHREAD %d\n", p->id);
+      vmregisters->rax=ept_resumeBrokenThread(p->id, p->continueMethod);
       break;
     }
 
@@ -2315,12 +2290,11 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       PVMCALL_DEBUG_SETSPINLOCKTIMEOUT p=(PVMCALL_DEBUG_SETSPINLOCKTIMEOUT)vmcall_instruction;
 
       nosendchar[getAPICID()]=0;
-      QWORD timeout = *(QWORD*)&vmcall_instruction[3];
-      sendstringf("Setting spinlocktimeout to %6", timeout);
-      spinlocktimeout=timeout;
+      sendstringf("Setting spinlocktimeout to %6", p->timeout);
+      spinlocktimeout=p->timeout;
       vmregisters->rax=0;
 #else
-      vmregisters->rax=0xDADEAD;
+      vmregisters->rax=0xA7DEAD;
 #endif
       break;
     }
@@ -2328,7 +2302,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
 
 
     default:
-      vmregisters->rax = 0xdadead;
+      vmregisters->rax = 0xcedead;
       break;
   }
 
@@ -2407,43 +2381,17 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     vmregisters->rax=currentcpuinfo->vmcb->RAX; //fill it in, it may get used here
 
 
-  // Allow GETVERSION to be queried without raising #UD so CE can detect DBVM,
-  // but with a fake/zero result unless correct passwords are provided (handled per-case).
-  // For all other commands enforce strict password check in registers.
-  if (vmregisters->rax)
+  //check password, if false, raise unknown opcode exception
+  if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
   {
-    int premap_error=0;
-    UINT64 premap_pf=0;
-    ULONG *peek=(ULONG *)mapVMmemory(currentcpuinfo, vmregisters->rax, 12, &premap_error, &premap_pf);
-    if ((premap_error==0) && (peek))
-    {
-      if (peek[2]!=VMCALL_GETVERSION)
-      {
-        if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
-        {
-          unmapVMmemory(peek, 12);
-          // FIXED: Return #GP instead of #UD to match bare metal VMCALL behavior
-          return raiseGeneralProtectionFault(0);
-        }
-      }
-      unmapVMmemory(peek, 12);
-    }
-    else
-    {
-      // If we can't peek, require passwords for safety
-      if ((vmregisters->rdx != Password1) || (vmregisters->rcx != Password3))
-        // FIXED: Return #GP instead of #UD to match bare metal VMCALL behavior
-        return raiseGeneralProtectionFault(0);
-    }
+    int x;
+    sendstringf("Invalid register password Given=%6 %6 should be %6 %6\n\r",vmregisters->rdx, vmregisters->rcx, Password1, Password3);
+    x = raiseInvalidOpcodeException(currentcpuinfo);
+    sendstringf("return = %d\n\r",x);
+    return x;
   }
 
-  // Check for probe attempts: if someone calls VMCALL without proper structure, 
-  // behave like bare metal (raise #GP not #UD)
-  if (vmregisters->rax == 0)
-  {
-    // Likely a detection probe - return #GP like real VMCALL failures
-    return raiseGeneralProtectionFault(0);
-  }
+
 
   //sendstringf("Password1 is valid\n\r");
 
@@ -2466,24 +2414,34 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
     return raiseInvalidOpcodeException(currentcpuinfo);
   }
 
-  // Validate size field
-  if (vmcall_instruction[0]<12)
+  //sendstringf("Mapped vmcall instruction structure (vmcall_instruction=%6)\n\r",(UINT64)vmcall_instruction);
+ //sendstringf("vmcall_instruction[0]=%8\n\r",vmcall_instruction[0]);
+  //sendstringf("vmcall_instruction[1]=%8\n\r",vmcall_instruction[1]);
+  //sendstringf("vmcall_instruction[2]=%8\n\r",vmcall_instruction[2]);
+
+
+
+  if ((vmcall_instruction[2]<12) || (vmcall_instruction[0]!=Password2))
   {
-    sendstringf("Invalid structuresize. Given=%8\n\r",vmcall_instruction[0]);
+    int i, maxnr;
+    sendstringf("Invalid password2 or structuresize. Given=%8 should be %8\n\r",vmcall_instruction[0], Password2);
+
+    sendstringf("0: %8", vmcall_instruction[2]);
+
+    maxnr=vmcall_instruction[2] / 4;
+    if (maxnr>3)
+      maxnr=3;
+
+    for (i=0; i<maxnr; i++)
+      sendstringf("%d: %8\n", i, vmcall_instruction[i]);
+
+
     unmapVMmemory(vmcall_instruction,12);
     return raiseInvalidOpcodeException(currentcpuinfo);
   }
 
-  // Check password2 in the vmcall structure header
-  if (vmcall_instruction[1] != Password2)
-  {
-    sendstringf("VMCALL: Invalid Password2. Raising #GP.\n");
-    unmapVMmemory(vmcall_instruction, 12);
-    // FIXED: Return #GP instead of #UD to match bare metal VMCALL behavior
-    return raiseGeneralProtectionFault(0);
-  }
 
-  int vmcall_instruction_size=vmcall_instruction[0];
+  int vmcall_instruction_size=vmcall_instruction[2];
 
   if (vmcall_instruction_size>16*1024)
   {
@@ -2502,7 +2460,7 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   }
 
 #ifdef DEBUG
-  //int totaldwords = vmcall_instruction[0] / 4;
+  //int totaldwords = vmcall_instruction[2] / 4;
   //int i;
   //for (i=3; i<totaldwords; i++)
   //{
@@ -2524,19 +2482,9 @@ int _handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
   }
 
 
-  ULONG command = vmcall_instruction[2];
-  QWORD guestrip;
-  if (isAMD)
-    guestrip = currentcpuinfo->vmcb->RIP;
-  else
-    guestrip = vmread(vm_guest_rip);
-
-  sendstringf("VMCALL start: cpu=%d rip=%6 cmd=%u rdx=%6 rcx=%6 ptr=%6\n", currentcpuinfo->cpunr, guestrip, command, vmregisters->rdx, vmregisters->rcx, vmregisters->rax);
-
-  //sendstringf("Handling vmcall command %d\n\r",vmcall_instruction[2]);
+  //sendstringf("Handling vmcall command %d\n\r",vmcall_instruction[1]);
 
   int r=_handleVMCallInstruction(currentcpuinfo, vmregisters, vmcall_instruction);
-  sendstringf("VMCALL done: cpu=%d cmd=%u result=%6 status=%d\n", currentcpuinfo->cpunr, command, vmregisters->rax, r);
   unmapVMmemory(vmcall_instruction, vmcall_instruction_size);
   return r;
 }
@@ -2582,9 +2530,4 @@ int handleVMCall(pcpuinfo currentcpuinfo, VMRegisters *vmregisters)
 
   return result;
 }
-
-
-
-
-
 

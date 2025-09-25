@@ -83,7 +83,7 @@ void apic_sendWaitInterrupt(BYTE apicid)
 
 
   Command.command=0;
-  Command.vector=0xda; //wait interrupt
+  Command.vector=0xce; //wait interrupt
   Command.deliverymode=4; //nmi
   Command.destinationmode=0; //physical
   Command.deliverystatus=1; //not being sent, but just setting it anyhow

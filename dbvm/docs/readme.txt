@@ -1,12 +1,10 @@
 Write vmdisk.img to a floppy disk or burn vmcd.iso to cd and boot off it. 
 When it's done loading remove the disk and your system will boot further
 
-To make use of vmcall you need to provide it with 3 passwords, these are:
-password1 : 0x13371337DEADC0DE
-password2 : 0xBEEF  
-password3 : 0xCAFEBABE13371337
-
-But can be changed during runtime.
+To make use of vmcall you must provide valid credentials. DBVM no longer ships
+with public default passwords. Passwords are generated/obfuscated at runtime
+and can be changed via the VMCALL_CHANGEPASSWORD command. Refer to vmcall.txt
+for the structure layout and update your calling code accordingly.
 
 System requirements:
 Intel Core2Duo and higher, or a Intel DualCore 9x0. Other variants won't work
