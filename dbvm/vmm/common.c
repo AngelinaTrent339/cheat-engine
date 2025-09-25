@@ -994,7 +994,16 @@ void sendstring(char *s UNUSED)
 {
 #ifdef DELAYEDSERIAL
   if (!useserial) return;
-#endif\r\n\r\n  if (s)\r\n  {\r\n    int len=strlen(s);\r\n    if (len>0)\r\n      debuglog_append(s, (unsigned int)len);\r\n  }\r\n\r\n#ifdef DEBUG
+#endif
+
+  if (s)
+  {
+    int len=strlen(s);
+    if (len>0)
+      debuglog_append(s, (unsigned int)len);
+  }
+
+#ifdef DEBUG
   #if DISPLAYDEBUG==1
     displayline(s);
   #else
