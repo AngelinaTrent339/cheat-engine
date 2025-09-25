@@ -2828,11 +2828,14 @@ var
   XOR_MASK_1: qword;
   XOR_MASK_2: dword;
   XOR_MASK_3: qword;
+  basicVersion: dword;
 begin
 
+  OutputDebugString('internal_LaunchDBVM: Entry point reached');
 
   if (hdevice<>INVALID_HANDLE_VALUE) then
   begin
+    OutputDebugString('internal_LaunchDBVM: hdevice is valid, proceeding with DBVM load');
     Outputdebugstring('LaunchDBVM');
 
     // OBFUSCATED CUSTOM PASSWORDS - same as DBVM but protected from memory scanning  
@@ -2888,22 +2891,38 @@ begin
     input.dbvmimgpath:=qword(ptrUint(@temp[1]));
 
     OutputDebugString('Calling deviceiocontrol');
+    OutputDebugString(format('vmdisk.img path: %s', [string(temp)]));
+    
     result:=deviceiocontrol(hdevice,cc,@input,sizeof(Input),nil,0,cc,nil);
     
     if result then
-      OutputDebugString('IOCTL_CE_LAUNCHDBVM succeeded')
+    begin
+      OutputDebugString('IOCTL_CE_LAUNCHDBVM succeeded');
+      
+      // DBVM INITIALIZATION: Wait for hypervisor to be ready before configuring passwords
+      OutputDebugString('Waiting for DBVM hypervisor initialization...');
+      sleep(100); // Give DBVM time to initialize
+      
+      // Test basic VMCALL functionality before full configure_vmx
+      OutputDebugString('Testing basic VMCALL functionality...');
+      try
+        basicVersion := dbvm_version;
+        OutputDebugString(format('Basic version check returned: %.8x', [basicVersion]));
+        if basicVersion = 0 then
+          OutputDebugString('WARNING: DBVM loaded but not responding to basic VMCALLs');
+      except
+        on e: Exception do
+          OutputDebugString(format('Basic VMCALL test failed: %s', [e.Message]));
+      end;
+      
+      // ANTI-HOOK HANDSHAKE: Use direct VMCALL with obfuscated custom passwords  
+      configure_vmx(vmx_password1, vmx_password2, vmx_password3);
+    end
     else
     begin
       OutputDebugString(format('IOCTL_CE_LAUNCHDBVM failed with error: %d', [GetLastError]));
       exit;
     end;
-
-    // DBVM INITIALIZATION: Wait for hypervisor to be ready before configuring passwords
-    OutputDebugString('Waiting for DBVM hypervisor initialization...');
-    sleep(100); // Give DBVM time to initialize
-    
-    // ANTI-HOOK HANDSHAKE: Use direct VMCALL with obfuscated custom passwords  
-    configure_vmx(vmx_password1, vmx_password2, vmx_password3);
     
     OutputDebugString('DBVM loaded with protected custom passwords');
 
@@ -2913,7 +2932,11 @@ begin
       SetThreadAffinityMask(GetCurrentThread, proc);
     end;
 
-  end else result:=false;
+  end else 
+  begin
+    OutputDebugString('internal_LaunchDBVM: hdevice is INVALID_HANDLE_VALUE - cannot load DBVM');
+    result:=false;
+  end;
 end;
 
 

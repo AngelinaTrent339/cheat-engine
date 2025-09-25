@@ -961,27 +961,15 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       PVMCALL_CHANGEPASSWORD_PARAM p=(PVMCALL_CHANGEPASSWORD_PARAM)vmcall_instruction;
 
       sendstring("Password change\n\r");
-
-      // Basic integrity check: commands other than change password should no longer point here
-
       Password1 = p->Password1;
       Password2 = p->Password2;
       Password3 = p->Password3;
 
-      if ((Password1!=0) || (Password2!=0) || (Password3!=0))
-      {
-        Password1 = p->Password1;
-        Password2 = p->Password2;
-        Password3 = p->Password3;
-        sendstringf("Password1=%6\n\r",Password1);
-        sendstringf("Password2=%8\n\r",Password2);
-        sendstringf("Password3=%6\n\r",Password3);
-        vmregisters->rax=0;
-      }
-      else
-      {
-        vmregisters->rax=0xFEDEAD;
-      }
+      sendstringf("Password1=%6\n\r",Password1);
+      sendstringf("Password2=%8\n\r",Password2);
+      sendstringf("Password3=%6\n\r",Password3);
+
+      vmregisters->rax=0;
       break;
     }
 

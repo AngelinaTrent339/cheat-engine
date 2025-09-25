@@ -40,10 +40,6 @@ const
 
   VMCALL_RESTORE_INTERRUPTS=118;
 
-  VMCALL_REGISTER_CR3_EDIT_CALLBACK=229;
-
-  VMCALL_RETURN_FROM_CR3_EDIT_CALLBACK=81;
-
   VMCALL_GETCR0=167;
 
   VMCALL_GETCR3=58;
@@ -82,53 +78,55 @@ const
 
   //dbvm 11
 
-  VMCALL_GETMEM=91;
+  VMCALL_GETMEM = 91;
 
-  VMCALL_JTAGBP=225;
+  VMCALL_JTAGBP = 225;
 
-  VMCALL_GETNMICOUNT=63;
+  VMCALL_GETNMICOUNT = 63;
 
-  VMCALL_WATCH_WRITES=134;
+  VMCALL_WATCH_WRITES = 134;
 
-  VMCALL_WATCH_READS=88;
+  VMCALL_WATCH_READS = 88;
 
-  VMCALL_WATCH_RETRIEVELOG=217;
+  VMCALL_WATCH_RETRIEVELOG = 217;
 
-  VMCALL_WATCH_DELETE=55;
+  VMCALL_WATCH_DELETE = 55;
 
-  VMCALL_CLOAK_ACTIVATE=171;
+  VMCALL_CLOAK_ACTIVATE = 171;
 
-  VMCALL_CLOAK_DEACTIVATE=42;
+  VMCALL_CLOAK_DEACTIVATE = 42;
 
-  VMCALL_CLOAK_READORIGINAL=126;
+  VMCALL_CLOAK_READORIGINAL = 126;
 
-  VMCALL_CLOAK_WRITEORIGINAL=193;
+  VMCALL_CLOAK_WRITEORIGINAL = 193;
 
-  VMCALL_CLOAK_CHANGEREGONBP=71;
+  VMCALL_CLOAK_CHANGEREGONBP = 71;
 
-  VMCALL_CLOAK_REMOVECHANGEREGONBP=148;
+  VMCALL_CLOAK_REMOVECHANGEREGONBP = 148;
 
-  VMCALL_EPT_RESET=86;   //removes all watches cloaks, and changereg bp's
+  VMCALL_EPT_RESET = 86;   //removes all watches cloaks, and changereg bp's
 
-  VMCALL_LOG_CR3VALUES_START=235;
+  VMCALL_LOG_CR3VALUES_START = 235;
 
-  VMCALL_LOG_CR3VALUES_STOP=49;
+  VMCALL_LOG_CR3VALUES_STOP = 49;
 
-  VMCALL_REGISTERPLUGIN=162;
+  VMCALL_REGISTERPLUGIN = 162;
 
-  VMCALL_RAISEPMI=78;
+  VMCALL_RAISEPMI = 78;
 
-  VMCALL_ULTIMAP2_HIDERANGEUSAGE=201;
+  VMCALL_ULTIMAP2_HIDERANGEUSAGE = 201;
 
-  VMCALL_ADD_MEMORY=33;
+  VMCALL_ADD_MEMORY = 33;
 
-  VMCALL_GET_STATISTICS=159;
+  VMCALL_DISABLE_EPT = 58;
 
-  VMCALL_WATCH_EXECUTES=84;
+  VMCALL_GET_STATISTICS = 159;
 
-  VMCALL_SETTSCADJUST=227;
+  VMCALL_WATCH_EXECUTES = 84;
 
-  VMCALL_SETSPEEDHACK=61;
+  VMCALL_SETTSCADJUST = 227;
+
+  VMCALL_SETSPEEDHACK = 61;
 
   VMCALL_DISABLETSCHOOK=37;
 
@@ -162,9 +160,9 @@ const
 
   VMCALL_DEBUG_SETSPINLOCKTIMEOUT=128;
 
-  VMCALL_DEBUGLOG_SNAPSHOT=250;
+  VMCALL_DEBUGLOG_SNAPSHOT = 250;
 
-  VMCALL_DEBUGLOG_CLEAR=251;
+  VMCALL_DEBUGLOG_CLEAR = 251;
 
   DBVM_DEBUGLOG_BUFFER_SIZE = 64*1024;
 
@@ -2156,9 +2154,14 @@ begin
 
   vmcallinfo.command:=VMCALL_GETVERSION;
 
+  DBVMLogDebug(format('dbvm_version: sending VMCALL with passwords: RDX=%.16x RCX=%.16x level2pass=%.8x command=%d', 
+    [vmx_password1, vmx_password3, vmx_password2, VMCALL_GETVERSION]));
+
   try
 
     rawresult:=vmcall(@vmcallinfo);
+
+    DBVMLogDebug(format('dbvm_version: vmcall returned %.8x', [rawresult]));
 
     // dynamic mask compatibility is handled inside CE elsewhere; keep behavior simple
     if rawresult<>0 then
@@ -2171,7 +2174,10 @@ begin
 
   except
     on e: Exception do
+    begin
+      DBVMLogDebug(format('dbvm_version: vmcall exception: %s', [e.Message]));
       result:=0;
+    end;
   end;
 
 end;
@@ -6053,7 +6059,7 @@ end;
 
 procedure configure_vmx(userpassword1: qword; userpassword2: dword; userpassword3: qword); //warning: not multithreaded, take care to only run at init!
 
-var
+var 
 
   r: dword;
 
@@ -6077,29 +6083,9 @@ begin
 
   vmx_password3:=userpassword3;
 
-  //attempt to set the new password triplet inside DBVM with retries
+  //skip password change since CE and DBVM already use identical pre-generated passwords
 
-  r:=$ffffffff;
-
-  for retry := 1 to 5 do
-
-  begin
-
-    r:=dbvm_changepassword(userpassword1,userpassword2,userpassword3);
-
-    DBVMLogDebug(format('dbvm_changepassword attempt %d returned %s', [retry, inttohex(r,1)]));
-
-    if r = 0 then break; // Success
-
-    sleep(50); // Wait before retry
-
-  end;
-
-  
-
-  if r <> 0 then
-
-    DBVMLogDebug('WARNING: dbvm_changepassword failed after all retries');
+  DBVMLogDebug('INFO: Skipping dbvm_changepassword - using matching pre-generated passwords');
 
   //check version with retries to ensure DBVM is responding
 

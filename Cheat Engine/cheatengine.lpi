@@ -27,7 +27,7 @@
       <AutoIncrementBuild Value="True"/>
       <MajorVersionNr Value="7"/>
       <MinorVersionNr Value="5"/>
-      <BuildNr Value="7713"/>
+      <BuildNr Value="7715"/>
       <Language Value="041C"/>
       <CharSet Value="04B0"/>
       <StringTable CompanyName="Woke Engine" FileDescription="Woke Engine" ProductVersion="7.5"/>
