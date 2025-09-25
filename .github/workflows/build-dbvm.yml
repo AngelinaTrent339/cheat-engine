@@ -15,13 +15,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # --- NEW: prep job computes a lowercase owner once ---
+  prep:
+    runs-on: ubuntu-24.04
+    outputs:
+      owner_lc: ${{ steps.lc.outputs.owner_lc }}
+    steps:
+      - id: lc
+        shell: bash
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "owner_lc=${OWNER,,}" >> "$GITHUB_OUTPUT"
+
   build-dbvm:
+    needs: prep
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
-    # <- all deps already baked in here
+    # Use the lowercase owner; add credentials so private GHCR pulls work.
     container:
-      image: ghcr.io/${{ github.repository_owner }}/dbvm-build:jammy-gcc9-1
+      image: ghcr.io/${{ needs.prep.outputs.owner_lc }}/dbvm-build:jammy-gcc9-1
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout (shallow)
