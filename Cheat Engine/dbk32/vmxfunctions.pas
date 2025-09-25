@@ -1115,7 +1115,7 @@ type
 
     procedure EnsureStream;
 
-    procedure CloseStream;
+    procedure SyncLog;
 
   protected
 
@@ -3504,7 +3504,7 @@ begin
 
 end;
 
-function dbvm_bp_getBrokenThreadEventFull(id: integer; out watchid: integer; out status: integer; out state: TPageEventExtended): integer;
+function dbvm_bp_getBrokenThreadEventFull(id: integer; out watchid: integer; out status: integer; out state: TPageEventExtended):integer;
 
 var
 

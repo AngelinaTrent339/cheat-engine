@@ -125,7 +125,7 @@ int pop(PStackList stackobject, void *data, int size);
 #define DEBUGLOG_SNAPSHOT_MAGIC 0x474F4C44 /* 'DLOG' */
 #define DEBUGLOG_SNAPSHOT_VERSION 1
 
-typedef struct __attribute__((__packed__)) _DEBUGLOG_SNAPSHOT{
+typedef struct _DEBUGLOG_SNAPSHOT{
   UINT32 magic;
   UINT32 version;
   UINT32 bufferSize;
