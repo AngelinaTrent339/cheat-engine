@@ -18,7 +18,7 @@ uses
 
   {$endif}
 
-  classes, dialogs, sysutils;
+  classes, dialogs, sysutils, LazUTF8;
 
 const
 
@@ -1109,7 +1109,7 @@ type
 
     FLogPath: string;
 
-    FStream: TFileStream;
+    FStream: TStream;
 
     FLastTotal: QWORD;
 
@@ -1180,51 +1180,54 @@ begin
 end;
 
 procedure TDBVMLogThread.EnsureStream;
-
+{$ifdef windows}
+var
+  handle: THandle;
+  ws: UnicodeString;
+{$endif}
 begin
-
   if FStream<>nil then
-
     exit;
 
   try
-
     ForceDirectories(ExtractFilePath(FLogPath));
-
   except
-
     // ignore directory creation errors
-
   end;
 
-  try
+{$ifdef windows}
+  ws:=UTF8Decode(FLogPath);
+  handle:=CreateFileW(PWideChar(ws), GENERIC_READ or GENERIC_WRITE,
+                      FILE_SHARE_READ or FILE_SHARE_WRITE,
+                      nil, OPEN_ALWAYS,
+                      FILE_ATTRIBUTE_NORMAL or FILE_FLAG_WRITE_THROUGH, 0);
+  if handle=INVALID_HANDLE_VALUE then
+    handle:=CreateFileW(PWideChar(ws), GENERIC_READ or GENERIC_WRITE,
+                        FILE_SHARE_READ or FILE_SHARE_WRITE,
+                        nil, CREATE_ALWAYS,
+                        FILE_ATTRIBUTE_NORMAL or FILE_FLAG_WRITE_THROUGH, 0);
+  if handle<>INVALID_HANDLE_VALUE then
+    FStream:=THandleStream.Create(handle);
+{$endif}
 
-    FStream:=TFileStream.Create(FLogPath, fmOpenReadWrite or fmShareDenyNone);
-
-  except
-
-    on EFOpenError do
-
-    begin
-
-      try
-
-        FStream:=TFileStream.Create(FLogPath, fmCreate or fmShareDenyNone);
-
-      except
-
-        FStream:=nil;
-
+  if FStream=nil then
+  begin
+    try
+      FStream:=TFileStream.Create(FLogPath, fmOpenReadWrite or fmShareDenyNone);
+    except
+      on EFOpenError do
+      begin
+        try
+          FStream:=TFileStream.Create(FLogPath, fmCreate or fmShareDenyNone);
+        except
+          FStream:=nil;
+        end;
       end;
-
     end;
-
   end;
 
   if FStream<>nil then
-
     FStream.Seek(0, soEnd);
-
 end;
 
 procedure TDBVMLogThread.Execute;
@@ -1318,7 +1321,8 @@ begin
                 begin
                   FStream.WriteBuffer(chunk[0], chunkSize);
 {$ifdef windows}
-                  FlushFileBuffers(FStream.Handle);
+                  if FStream is THandleStream then
+                    FlushFileBuffers(THandleStream(FStream).Handle);
 {$endif}
                 end;
               finally
@@ -1375,7 +1379,8 @@ begin
       if Length(line)>0 then
         FStream.WriteBuffer(line[1], Length(line));
 {$ifdef windows}
-      FlushFileBuffers(FStream.Handle);
+      if FStream is THandleStream then
+        FlushFileBuffers(THandleStream(FStream).Handle);
 {$endif}
     end;
   finally
@@ -2130,47 +2135,45 @@ begin
 end;
 
 function dbvm_version: dword; stdcall;
-
 var
-
-  vmcallinfo: record
-
-    structsize: dword;
-
+  vmcallinfo: packed record
     level2pass: dword;
-
     command: dword;
-
+    structsize: dword;
   end;
-
   rawresult: dword;
 begin
+  result:=0;
 
-  //FALLBACK PASSWORD MECHANISM DISABLED
+  if (vmx_password1=0) or (vmx_password2=0) or (vmx_password3=0) then
+  begin
+    DBVMLogDebug('dbvm_version: passwords not configured - skipping VMCALL');
+    exit;
+  end;
 
+  if @vmcall = @vmcallUnSupported then
+  begin
+    DBVMLogDebug('dbvm_version: vmcall unsupported on this CPU');
+    exit;
+  end;
+
+  FillChar(vmcallinfo, sizeof(vmcallinfo), 0);
+  vmcallinfo.level2pass:=vmx_password2;
+  vmcallinfo.command:=VMCALL_GETVERSION;
   vmcallinfo.structsize:=sizeof(vmcallinfo);
 
-  vmcallinfo.level2pass:=vmx_password2;
-
-  vmcallinfo.command:=VMCALL_GETVERSION;
-
-  DBVMLogDebug(format('dbvm_version: sending VMCALL with passwords: RDX=%.16x RCX=%.16x level2pass=%.8x command=%d', 
+  DBVMLogDebug(format('dbvm_version: sending VMCALL with passwords: RDX=%.16x RCX=%.16x level2pass=%.8x command=%d',
     [vmx_password1, vmx_password3, vmx_password2, VMCALL_GETVERSION]));
 
   try
-
     rawresult:=vmcall(@vmcallinfo);
-
     DBVMLogDebug(format('dbvm_version: vmcall returned %.8x', [rawresult]));
 
-    // dynamic mask compatibility is handled inside CE elsewhere; keep behavior simple
     if rawresult<>0 then
     begin
       result:=rawresult;
       vmx_loaded:=true;
-    end
-    else
-      result:=0;
+    end;
 
   except
     on e: Exception do
@@ -2179,7 +2182,6 @@ begin
       result:=0;
     end;
   end;
-
 end;
 
 function dbvm_debuglog_snapshot(var snapshot: TDBVMDebugLogSnapshot; clearAfterRead: boolean): boolean; stdcall;
