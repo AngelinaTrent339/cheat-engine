@@ -1,5 +1,5 @@
 ;
-; DBK64.inf
+; WE64.inf
 ;
 
 [Version]
@@ -66,34 +66,34 @@ CopyFiles=Drivers_Dir
 WE64.sys
 
 ;-------------- Service installation
-[DBK64_Device.NT.Services]
-AddService = DBK64,%SPSVCINST_ASSOCSERVICE%, DBK64_Service_Inst
+[WE64_Device.NT.Services]
+AddService = WE64,%SPSVCINST_ASSOCSERVICE%, WE64_Service_Inst
 
-; -------------- DBK64 driver install sections
-[DBK64_Service_Inst]
-DisplayName    = %DBK64.SVCDESC%
+; -------------- WE64 driver install sections
+[WE64_Service_Inst]
+DisplayName    = %WE64.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %12%\DBK64.sys
+ServiceBinary  = %12%\WE64.sys
 
 ;
-;--- DBK64_Device Coinstaller installation ------
+;--- WE64_Device Coinstaller installation ------
 ;
 
-[DBK64_Device.NT.CoInstallers]
-AddReg=DBK64_Device_CoInstaller_AddReg
-CopyFiles=DBK64_Device_CoInstaller_CopyFiles
+[WE64_Device.NT.CoInstallers]
+AddReg=WE64_Device_CoInstaller_AddReg
+CopyFiles=WE64_Device_CoInstaller_CopyFiles
 
-[DBK64_Device_CoInstaller_AddReg]
+[WE64_Device_CoInstaller_AddReg]
 HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
 
-[DBK64_Device_CoInstaller_CopyFiles]
+[WE64_Device_CoInstaller_CopyFiles]
 WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
 
-[DBK64_Device.NT.Wdf]
-KmdfService =  DBK64, DBK64_wdfsect
-[DBK64_wdfsect]
+[WE64_Device.NT.Wdf]
+KmdfService =  WE64, WE64_wdfsect
+[WE64_wdfsect]
 KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
@@ -103,4 +103,3 @@ ClassName="System" ; TODO: edit ClassName
 DiskName = "WE64 Installation Disk"
 WE64.DeviceDesc = "WE64 Device"
 WE64.SVCDESC = "WE64 Service"
-DBK64.SVCDESC = "DBK64 Service"
