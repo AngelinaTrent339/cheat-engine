@@ -2292,15 +2292,15 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
       PVMCALL_DEBUGLOG_PARAM param=(PVMCALL_DEBUGLOG_PARAM)vmcall_instruction;
       int error;
       QWORD pagefaultaddress;
-      PDEBUGLOG_SNAPSHOT destination;
+      struct DEBUGLOG_SNAPSHOT *destination;
 
-      if ((param->destination==0) || (param->size<sizeof(DEBUGLOG_SNAPSHOT)))
+      if ((param->destination==0) || (param->size<sizeof(struct DEBUGLOG_SNAPSHOT)))
       {
         vmregisters->rax=0;
         break;
       }
 
-      destination=(PDEBUGLOG_SNAPSHOT)mapVMmemory(currentcpuinfo, param->destination, param->size, &error, &pagefaultaddress);
+      destination=(struct DEBUGLOG_SNAPSHOT *)mapVMmemory(currentcpuinfo, param->destination, param->size, &error, &pagefaultaddress);
 
       if (error)
       {

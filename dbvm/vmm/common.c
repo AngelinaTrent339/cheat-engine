@@ -108,7 +108,7 @@ void debuglog_append(const char *text, unsigned int length)
   csLeave(&debuglogCS);
 }
 
-void debuglog_snapshot(DEBUGLOG_SNAPSHOT *snapshot)
+void debuglog_snapshot(struct DEBUGLOG_SNAPSHOT *snapshot)
 {
   if (snapshot==NULL)
     return;
