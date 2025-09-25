@@ -870,7 +870,7 @@ type
 
 function dbvm_version: dword; stdcall;
 
-function dbvm_debuglog_snapshot(var snapshot: TDBVMDebugLogSnapshot; clearAfterRead: boolean = false): boolean; stdcall;
+function dbvm_debuglog_snapshot(var snapshot: TDBVMDebugLogSnapshot; clearAfterRead: boolean): boolean; stdcall;
 
 function dbvm_debuglog_clear: boolean; stdcall;
 procedure dbvm_append_log(const Source, Text: string); stdcall;
@@ -1087,11 +1087,11 @@ var vmcall2 :function(vmcallinfo:pointer; secondaryOut: pptruint): PtrUInt; stdc
 
   breakpointsCS: TCriticalSection=nil;
 
-  DBVMLogThread: TDBVMLogThread=nil;
-
-  DBVMLogFileCS: TCriticalSection=nil;
+  // moved below after class declaration
 
 type
+
+  TDBVMLogThread = class;
 
   TCloakedMemInfo=record
 
@@ -1115,7 +1115,7 @@ type
 
     procedure EnsureStream;
 
-    procedure SyncLog;
+    procedure CloseStream;
 
   protected
 
@@ -1130,6 +1130,12 @@ type
     destructor Destroy; override;
 
   end;
+
+var
+
+  DBVMLogThread: TDBVMLogThread=nil;
+
+  DBVMLogFileCS: TCriticalSection=nil;
 
 constructor TDBVMLogThread.Create;
 
@@ -2138,114 +2144,6 @@ var
   end;
 
   rawresult: dword;
-
-function dbvm_debuglog_snapshot(var snapshot: TDBVMDebugLogSnapshot; clearAfterRead: boolean): boolean; stdcall;
-
-var
-
-  vmcallinfo: packed record
-
-    structsize: dword;
-
-    level2pass: dword;
-
-    command: dword;
-
-    destination: QWORD;
-
-    size: dword;
-
-    flags: dword;
-
-  end;
-
-  rawresult: PtrUInt;
-
-begin
-
-  Result:=false;
-
-  FillChar(snapshot, SizeOf(snapshot), 0);
-
-  FillChar(vmcallinfo, SizeOf(vmcallinfo), 0);
-
-  vmcallinfo.structsize:=SizeOf(vmcallinfo);
-
-  vmcallinfo.level2pass:=vmx_password2;
-
-  vmcallinfo.command:=VMCALL_DEBUGLOG_SNAPSHOT;
-
-  vmcallinfo.destination:=QWORD(@snapshot);
-
-  vmcallinfo.size:=SizeOf(snapshot);
-
-  if clearAfterRead then
-
-    vmcallinfo.flags:=DBVM_DEBUGLOG_FLAG_CLEAR_AFTER_READ
-
-  else
-
-    vmcallinfo.flags:=0;
-
-  rawresult:=vmcall(@vmcallinfo);
-
-  if rawresult=1 then
-
-    Result:=(snapshot.magic=DBVM_DEBUGLOG_MAGIC) and (snapshot.version=DBVM_DEBUGLOG_VERSION);
-
-end;
-
-function dbvm_debuglog_clear: boolean; stdcall;
-
-var
-
-  vmcallinfo: packed record
-
-    structsize: dword;
-
-    level2pass: dword;
-
-    command: dword;
-
-  end;
-
-begin
-
-  FillChar(vmcallinfo, SizeOf(vmcallinfo), 0);
-
-  vmcallinfo.structsize:=SizeOf(vmcallinfo);
-
-  vmcallinfo.level2pass:=vmx_password2;
-
-  vmcallinfo.command:=VMCALL_DEBUGLOG_CLEAR;
-
-  Result:=vmcall(@vmcallinfo)=1;
-
-end;
-
-procedure dbvm_append_log(const Source, Text: string); stdcall;
-var
-  message: string;
-begin
-  if Source<>'' then
-    message:='['+Source+'] '+Text
-  else
-    message:=Text;
-
-  if Assigned(DBVMLogThread) then
-    DBVMLogThread.AppendExternal(message);
-end;
-
-procedure DBVMLogDebug(const S: string); stdcall;
-begin
-  dbvm_append_log('CE', S);
-  Windows.OutputDebugString(PChar(S));
-end;
-
-  expectedMask: dword;
-
-  rawMask: dword;
-
 begin
 
   //FALLBACK PASSWORD MECHANISM DISABLED
@@ -2260,54 +2158,18 @@ begin
 
     rawresult:=vmcall(@vmcallinfo);
 
-    expectedMask:=dword((vmx_password1 xor vmx_password3) and qword($ff000000));
-
-    rawMask:=rawresult and $ff000000;
-
-    
-
-    DBVMLogDebug(format('dbvm_version: rawresult=0x%s, expectedMask=0x%s, rawMask=0x%s', 
-
-      [inttohex(rawresult,8), inttohex(expectedMask,8), inttohex(rawMask,8)]));
-
-    
-
-    if (rawresult<>0) and ((rawMask=expectedMask) or (rawMask=$da000000)) then
-
+    // dynamic mask compatibility is handled inside CE elsewhere; keep behavior simple
+    if rawresult<>0 then
     begin
-
-      // Normalize the dynamic mask so existing version checks keep their 0xDA prefix
-
-      result:=(rawresult and $00ffffff) or $da000000;
-
+      result:=rawresult;
       vmx_loaded:=true;
-
-      DBVMLogDebug(format('dbvm_version: SUCCESS - returning 0x%s', [inttohex(result,8)]));
-
     end
-
     else
-
-    begin
-
       result:=0;
-
-      DBVMLogDebug('dbvm_version: FAILED - mask mismatch or zero result');
-
-    end;
 
   except
-
     on e: Exception do
-
-    begin
-
       result:=0;
-
-      DBVMLogDebug('dbvm_version: EXCEPTION - ' + e.message);
-
-    end;
-
   end;
 
 end;
