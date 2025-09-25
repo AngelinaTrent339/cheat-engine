@@ -2753,21 +2753,23 @@ function dbvm_getMemory(var pages: QWORD): QWORD;
 
 var vmcallinfo: packed record
 
-  structsize: dword;
-
   level2pass: dword;
 
   command: dword;
+
+  structsize: dword;
 
 end;
 
 begin
 
-  vmcallinfo.structsize:=sizeof(vmcallinfo);
+  FillChar(vmcallinfo, sizeof(vmcallinfo), 0);
 
   vmcallinfo.level2pass:=vmx_password2;
 
   vmcallinfo.command:=VMCALL_GETMEM;
+
+  vmcallinfo.structsize:=sizeof(vmcallinfo);
 
   result:=vmcall2(@vmcallinfo, @pages);
 
