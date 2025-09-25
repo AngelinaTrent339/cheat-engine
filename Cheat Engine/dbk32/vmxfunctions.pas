@@ -1090,16 +1090,27 @@ begin
     expectedMask:=dword((vmx_password1 xor vmx_password3) and qword($ff000000));
     rawMask:=rawresult and $ff000000;
     
+    OutputDebugString(format('dbvm_version: rawresult=0x%s, expectedMask=0x%s, rawMask=0x%s', 
+      [inttohex(rawresult,8), inttohex(expectedMask,8), inttohex(rawMask,8)]));
+    
     if (rawresult<>0) and ((rawMask=expectedMask) or (rawMask=$da000000)) then
     begin
       // Normalize the dynamic mask so existing version checks keep their 0xDA prefix
       result:=(rawresult and $00ffffff) or $da000000;
       vmx_loaded:=true;
+      OutputDebugString(format('dbvm_version: SUCCESS - returning 0x%s', [inttohex(result,8)]));
     end
     else
+    begin
       result:=0;
+      OutputDebugString('dbvm_version: FAILED - mask mismatch or zero result');
+    end;
   except
-    result:=0;
+    on e: Exception do
+    begin
+      result:=0;
+      OutputDebugString('dbvm_version: EXCEPTION - ' + e.message);
+    end;
   end;
 end;
 
@@ -3370,7 +3381,10 @@ end;
 
 
 procedure configure_vmx(userpassword1: qword; userpassword2: dword; userpassword3: qword); //warning: not multithreaded, take care to only run at init!
-var r: dword;
+var 
+  r: dword;
+  retry: integer;
+  version: dword;
 begin
   {$ifndef NOVMX}
   //configure dbvm if possible
@@ -3381,13 +3395,37 @@ begin
   vmx_password2:=userpassword2;
   vmx_password3:=userpassword3;
 
-  //attempt to set the new password triplet inside DBVM (will return 0 on success)
-  r:=dbvm_changepassword(userpassword1,userpassword2,userpassword3);
-  OutputDebugString('dbvm_changepassword returned '+inttohex(r,1));
+  //attempt to set the new password triplet inside DBVM with retries
+  r:=$ffffffff;
+  for retry := 1 to 5 do
+  begin
+    r:=dbvm_changepassword(userpassword1,userpassword2,userpassword3);
+    OutputDebugString(format('dbvm_changepassword attempt %d returned %s', [retry, inttohex(r,1)]));
+    if r = 0 then break; // Success
+    sleep(50); // Wait before retry
+  end;
+  
+  if r <> 0 then
+    OutputDebugString('WARNING: dbvm_changepassword failed after all retries');
 
+  //check version with retries to ensure DBVM is responding
+  version := 0;
+  for retry := 1 to 5 do
+  begin
+    version := dbvm_version;
+    OutputDebugString(format('dbvm_version attempt %d returned %s', [retry, inttohex(version,8)]));
+    if version <> 0 then break; // Success
+    sleep(50); // Wait before retry
+  end;
+  
   //enable kernel-side vmcall usage when DBVM reports a valid version
-  if dbvm_version<>0 then
+  if version <> 0 then
+  begin
+    OutputDebugString('DBVM is responding - enabling kernel support');
     configure_vmx_kernel;
+  end
+  else
+    OutputDebugString('ERROR: DBVM is not responding to version requests');
   {$endif}
 end;
 
@@ -3403,7 +3441,7 @@ var cc: dword;
     x: TInput;
 begin
   {$IFDEF windows}
-  if (dbvm_version>$da000000) then //tell the driver it can use vmcall instructions
+  if (dbvm_version>0) then //tell the driver it can use vmcall instructions
   begin
     OutputDebugString('vmx_enabled=TRUE');
 

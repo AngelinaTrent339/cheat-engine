@@ -2898,6 +2898,10 @@ begin
       exit;
     end;
 
+    // DBVM INITIALIZATION: Wait for hypervisor to be ready before configuring passwords
+    OutputDebugString('Waiting for DBVM hypervisor initialization...');
+    sleep(100); // Give DBVM time to initialize
+    
     // ANTI-HOOK HANDSHAKE: Use direct VMCALL with obfuscated custom passwords  
     configure_vmx(vmx_password1, vmx_password2, vmx_password3);
     
