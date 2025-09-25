@@ -22,147 +22,149 @@ uses
 
 const
 
-  VMCALL_GETVERSION=0;
+  VMCALL_GETVERSION=183;
 
-  VMCALL_CHANGEPASSWORD=1;
+  VMCALL_CHANGEPASSWORD=67;
 
-  VMCALL_READPHYSICALMEMORY=3;
+  VMCALL_READPHYSICALMEMORY=241;
 
-  VMCALL_WRITEPHYSICALMEMORY=4;
+  VMCALL_WRITEPHYSICALMEMORY=92;
 
-  VMCALL_REDIRECTINT1=9;
+  VMCALL_REDIRECTINT1=156;
 
-  VMCALL_INT1REDIRECTED=10;
+  VMCALL_INT1REDIRECTED=74;
 
-  VMCALL_CHANGESELECTORS=12;
+  VMCALL_CHANGESELECTORS=203;
 
-  VMCALL_BLOCK_INTERRUPTS=13;
+  VMCALL_BLOCK_INTERRUPTS=45;
 
-  VMCALL_RESTORE_INTERRUPTS=14;
+  VMCALL_RESTORE_INTERRUPTS=118;
 
-  VMCALL_GETCR0=18;
+  VMCALL_REGISTER_CR3_EDIT_CALLBACK=229;
 
-  VMCALL_GETCR3=19;
+  VMCALL_RETURN_FROM_CR3_EDIT_CALLBACK=81;
 
-  VMCALL_GETCR4=20;
+  VMCALL_GETCR0=167;
 
-  VMCALL_RAISEPRIVILEGE=21;
+  VMCALL_GETCR3=58;
 
-  VMCALL_REDIRECTINT14=22;
+  VMCALL_GETCR4=214;
 
-  VMCALL_INT14REDIRECTED=23;
+  VMCALL_RAISEPRIVILEGE=36;
 
-  VMCALL_REDIRECTINT3=24;
+  VMCALL_REDIRECTINT14=129;
 
-  VMCALL_INT3REDIRECTED=25;
+  VMCALL_INT14REDIRECTED=195;
 
-  VMCALL_READMSR=26;
+  VMCALL_REDIRECTINT3=83;
 
-  VMCALL_WRITEMSR=27;
+  VMCALL_INT3REDIRECTED=152;
 
-  VMCALL_SWITCH_TO_KERNELMODE=30;
+  VMCALL_READMSR=47;
 
-  VMCALL_DISABLE_DATAPAGEFAULTS= 31;
+  VMCALL_WRITEMSR=178;
 
-  VMCALL_ENABLE_DATAPAGEFAULTS= 32;
+  VMCALL_SWITCH_TO_KERNELMODE=64;
 
-  VMCALL_GETLASTSKIPPEDPAGEFAULT =33;
+  VMCALL_DISABLE_DATAPAGEFAULTS=187;
 
-  VMCALL_ULTIMAP_PAUSE =34;
+  VMCALL_ENABLE_DATAPAGEFAULTS=52;
 
-  VMCALL_ULTIMAP_RESUME= 35;
+  VMCALL_GETLASTSKIPPEDPAGEFAULT=142;
 
-  VMCALL_ULTIMAP_DEBUGINFO = 36;
+  VMCALL_ULTIMAP_PAUSE=76;
 
-  VMCALL_TESTPSOD = 37;
+  VMCALL_ULTIMAP_RESUME=209;
+
+  VMCALL_ULTIMAP_DEBUGINFO=39;
+
+  VMCALL_TESTPSOD=164;
 
   //dbvm 11
 
-  VMCALL_GETMEM = 38;
+  VMCALL_GETMEM=91;
 
-  VMCALL_JTAGBP = 39;
+  VMCALL_JTAGBP=225;
 
-  VMCALL_GETNMICOUNT = 40;
+  VMCALL_GETNMICOUNT=63;
 
-  VMCALL_WATCH_WRITES = 41;
+  VMCALL_WATCH_WRITES=134;
 
-  VMCALL_WATCH_READS = 42;
+  VMCALL_WATCH_READS=88;
 
-  VMCALL_WATCH_RETRIEVELOG = 43;
+  VMCALL_WATCH_RETRIEVELOG=217;
 
-  VMCALL_WATCH_DELETE = 44;
+  VMCALL_WATCH_DELETE=55;
 
-  VMCALL_CLOAK_ACTIVATE = 45;
+  VMCALL_CLOAK_ACTIVATE=171;
 
-  VMCALL_CLOAK_DEACTIVATE = 46;
+  VMCALL_CLOAK_DEACTIVATE=42;
 
-  VMCALL_CLOAK_READORIGINAL = 47;
+  VMCALL_CLOAK_READORIGINAL=126;
 
-  VMCALL_CLOAK_WRITEORIGINAL = 48;
+  VMCALL_CLOAK_WRITEORIGINAL=193;
 
-  VMCALL_CLOAK_CHANGEREGONBP = 49;
+  VMCALL_CLOAK_CHANGEREGONBP=71;
 
-  VMCALL_CLOAK_REMOVECHANGEREGONBP = 50;
+  VMCALL_CLOAK_REMOVECHANGEREGONBP=148;
 
-  VMCALL_EPT_RESET = 51;   //removes all watches cloaks, and changereg bp's
+  VMCALL_EPT_RESET=86;   //removes all watches cloaks, and changereg bp's
 
-  VMCALL_LOG_CR3VALUES_START = 52;
+  VMCALL_LOG_CR3VALUES_START=235;
 
-  VMCALL_LOG_CR3VALUES_STOP = 53;
+  VMCALL_LOG_CR3VALUES_STOP=49;
 
-  VMCALL_REGISTERPLUGIN = 54;
+  VMCALL_REGISTERPLUGIN=162;
 
-  VMCALL_RAISEPMI = 55;
+  VMCALL_RAISEPMI=78;
 
-  VMCALL_ULTIMAP2_HIDERANGEUSAGE = 56;
+  VMCALL_ULTIMAP2_HIDERANGEUSAGE=201;
 
-  VMCALL_ADD_MEMORY = 57;
+  VMCALL_ADD_MEMORY=33;
 
-  VMCALL_DISABLE_EPT = 58;
+  VMCALL_GET_STATISTICS=159;
 
-  VMCALL_GET_STATISTICS = 59;
+  VMCALL_WATCH_EXECUTES=84;
 
-  VMCALL_WATCH_EXECUTES = 60;
+  VMCALL_SETTSCADJUST=227;
 
-  VMCALL_SETTSCADJUST = 61;
+  VMCALL_SETSPEEDHACK=61;
 
-  VMCALL_SETSPEEDHACK = 62;
+  VMCALL_DISABLETSCHOOK=37;
 
-  VMCALL_DISABLETSCHOOK=66;
+  VMCALL_ENABLETSCHOOK=113;
 
-  VMCALL_ENABLETSCHOOK=67;
+  VMCALL_WATCH_GETSTATUS=191;
 
-  VMCALL_WATCH_GETSTATUS=68;
+  VMCALL_CLOAK_TRACEONBP=56;
 
-  VMCALL_CLOAK_TRACEONBP=69;
+  VMCALL_CLOAK_TRACEONBP_REMOVE=175;
 
-  VMCALL_CLOAK_TRACEONBP_REMOVE=70;
+  VMCALL_CLOAK_TRACEONBP_READLOG=44;
 
-  VMCALL_CLOAK_TRACEONBP_READLOG=71;
+  VMCALL_CLOAK_TRACEONBP_GETSTATUS=123;
 
-  VMCALL_CLOAK_TRACEONBP_GETSTATUS=72;
+  VMCALL_CLOAK_TRACEONBP_STOPTRACE=189;
 
-  VMCALL_CLOAK_TRACEONBP_STOPTRACE=73;
+  VMCALL_GETBROKENTHREADLISTSIZE=53;
 
-  VMCALL_GETBROKENTHREADLISTSIZE=74;
+  VMCALL_GETBROKENTHREADENTRYSHORT=169;
 
-  VMCALL_GETBROKENTHREADENTRYSHORT=75;
+  VMCALL_GETBROKENTHREADENTRYFULL=41;
 
-  VMCALL_GETBROKENTHREADENTRYFULL=76;
+  VMCALL_SETBROKENTHREADENTRYFULL=115;
 
-  VMCALL_SETBROKENTHREADENTRYFULL=77;
+  VMCALL_RESUMEBROKENTHREAD=197;
 
-  VMCALL_RESUMEBROKENTHREAD=78;
+  VMCALL_HIDEDBVMPHYSICALADDRESSES=69;
 
-  VMCALL_HIDEDBVMPHYSICALADDRESSES=79;
+  VMCALL_HIDEDBVMPHYSICALADDRESSESALL=177;
 
-  VMCALL_HIDEDBVMPHYSICALADDRESSESALL=80;
+  VMCALL_DEBUG_SETSPINLOCKTIMEOUT=128;
 
-  VMCALL_DEBUG_SETSPINLOCKTIMEOUT=254;
+  VMCALL_DEBUGLOG_SNAPSHOT=250;
 
-  VMCALL_DEBUGLOG_SNAPSHOT = 250;
-
-  VMCALL_DEBUGLOG_CLEAR = 251;
+  VMCALL_DEBUGLOG_CLEAR=251;
 
   DBVM_DEBUGLOG_BUFFER_SIZE = 64*1024;
 
@@ -2172,6 +2174,81 @@ begin
       result:=0;
   end;
 
+end;
+
+function dbvm_debuglog_snapshot(var snapshot: TDBVMDebugLogSnapshot; clearAfterRead: boolean): boolean; stdcall;
+type
+  TVMCallDebugLogSnapshot = packed record
+    structsize: dword;
+    level2pass: dword;
+    command: dword;
+    destination: QWORD;
+    size: dword;
+    flags: dword;
+  end;
+var
+  vmcallinfo: TVMCallDebugLogSnapshot;
+begin
+  result := false;
+  try
+    FillChar(vmcallinfo, sizeof(vmcallinfo), 0);
+    vmcallinfo.structsize := sizeof(vmcallinfo);
+    vmcallinfo.level2pass := vmx_password2;
+    vmcallinfo.command := VMCALL_DEBUGLOG_SNAPSHOT;
+    vmcallinfo.destination := QWORD(@snapshot);
+    vmcallinfo.size := sizeof(snapshot);
+    if clearAfterRead then
+      vmcallinfo.flags := DBVM_DEBUGLOG_FLAG_CLEAR_AFTER_READ;
+
+    result := vmcall(@vmcallinfo) <> 0;
+
+    if clearAfterRead and result then
+      dbvm_debuglog_clear;
+  except
+    result := false;
+  end;
+end;
+
+function dbvm_debuglog_clear: boolean; stdcall;
+type
+  TVMCallDebugLogClear = packed record
+    structsize: dword;
+    level2pass: dword;
+    command: dword;
+  end;
+var
+  vmcallinfo: TVMCallDebugLogClear;
+begin
+  result := false;
+  try
+    FillChar(vmcallinfo, sizeof(vmcallinfo), 0);
+    vmcallinfo.structsize := sizeof(vmcallinfo);
+    vmcallinfo.level2pass := vmx_password2;
+    vmcallinfo.command := VMCALL_DEBUGLOG_CLEAR;
+
+    result := vmcall(@vmcallinfo) <> 0;
+  except
+    result := false;
+  end;
+end;
+
+procedure dbvm_append_log(const Source, Text: string); stdcall;
+var
+  composed: string;
+begin
+  if Assigned(DBVMLogThread) then
+  begin
+    if Source<>'' then
+      composed:=Source+': '+Text
+    else
+      composed:=Text;
+    DBVMLogThread.AppendExternal(composed);
+  end;
+end;
+
+procedure DBVMLogDebug(const S: string); stdcall;
+begin
+  dbvm_append_log('DBVM', S);
 end;
 
 function dbvm_changepassword(password1:Qword; password2: dword; password3: Qword): DWORD; stdcall;
@@ -5976,7 +6053,7 @@ end;
 
 procedure configure_vmx(userpassword1: qword; userpassword2: dword; userpassword3: qword); //warning: not multithreaded, take care to only run at init!
 
-var 
+var
 
   r: dword;
 
@@ -6138,7 +6215,7 @@ initialization
 
       vmcall:=vmcallSupported_amd;
 
-      vmcall2:=vmcallSupported2_amd
+      vmcall2:=vmcallSupported2_amd;
 
     end
 
@@ -6168,7 +6245,7 @@ initialization
 
   DBVMLogThread:=TDBVMLogThread.Create;
 
-end;
+end
 
 finalization
 
