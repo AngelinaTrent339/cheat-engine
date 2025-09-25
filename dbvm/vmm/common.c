@@ -25,6 +25,14 @@ QWORD spinlocktimeout=0;
 criticalSection sendstringfCS={.name="sendstringfCS", .debuglevel=1};
 criticalSection sendstringCS={.name="sendstringCS", .debuglevel=1};
 
+static char debuglogBuffer[DEBUGLOG_BUFFER_SIZE];
+static volatile unsigned int debuglogWriteIndex=0;
+static volatile unsigned int debuglogSequence=0;
+static volatile unsigned int debuglogWrapped=0;
+static volatile unsigned long long debuglogTotalWritten=0;
+static int debuglogInitialized=0;
+static criticalSection debuglogCS={.name="debuglogCS", .debuglevel=1};
+
 #ifdef DELAYEDSERIAL
 int useserial=0;
 #endif
@@ -54,12 +62,88 @@ int popcnt_nosupport(QWORD val)
 
     if (val==0)
       return result;
-  }
+  }\r\n\r\n  return result;\r\n}\r\n\r\nvoid debuglog_init(void)
+{
+  if (debuglogInitialized)
+    return;
 
-  return result;
+  csEnter(&debuglogCS);
+  if (!debuglogInitialized)
+  {
+    zeromemory(debuglogBuffer, DEBUGLOG_BUFFER_SIZE);
+    debuglogWriteIndex=0;
+    debuglogSequence=0;
+    debuglogWrapped=0;
+    debuglogTotalWritten=0;
+    debuglogInitialized=1;
+  }
+  csLeave(&debuglogCS);
 }
 
-POPCNT_IMPLEMENTATION popcnt=popcnt_nosupport;
+void debuglog_append(const char *text, unsigned int length)
+{
+  unsigned int i;
+
+  if ((text==NULL) || (length==0))
+    return;
+
+  if (!debuglogInitialized)
+    debuglog_init();
+
+  csEnter(&debuglogCS);
+
+  for (i=0; i<length; i++)
+  {
+    debuglogBuffer[debuglogWriteIndex]=text[i];
+    debuglogWriteIndex++;
+    debuglogTotalWritten++;
+    if (debuglogWriteIndex>=DEBUGLOG_BUFFER_SIZE)
+    {
+      debuglogWriteIndex=0;
+      debuglogWrapped=1;
+      debuglogSequence++;
+    }
+  }
+
+  csLeave(&debuglogCS);
+}
+
+void debuglog_snapshot(PDEBUGLOG_SNAPSHOT snapshot)
+{
+  if (snapshot==NULL)
+    return;
+
+  if (!debuglogInitialized)
+    debuglog_init();
+
+  csEnter(&debuglogCS);
+
+  snapshot->magic=DEBUGLOG_SNAPSHOT_MAGIC;
+  snapshot->version=DEBUGLOG_SNAPSHOT_VERSION;
+  snapshot->bufferSize=DEBUGLOG_BUFFER_SIZE;
+  snapshot->writeIndex=debuglogWriteIndex;
+  snapshot->sequence=debuglogSequence;
+  snapshot->wrapped=debuglogWrapped;
+  snapshot->reserved=0;
+  snapshot->totalWritten=debuglogTotalWritten;
+  copymem(snapshot->buffer, debuglogBuffer, DEBUGLOG_BUFFER_SIZE);
+
+  csLeave(&debuglogCS);
+}
+
+void debuglog_clear(void)
+{
+  if (!debuglogInitialized)
+    debuglog_init();
+
+  csEnter(&debuglogCS);
+  zeromemory(debuglogBuffer, DEBUGLOG_BUFFER_SIZE);
+  debuglogWriteIndex=0;
+  debuglogWrapped=0;
+  debuglogTotalWritten=0;
+  debuglogSequence++;
+  csLeave(&debuglogCS);
+}\r\n\r\nPOPCNT_IMPLEMENTATION popcnt=popcnt_nosupport;
 
 
 
@@ -903,9 +987,7 @@ void sendstring(char *s UNUSED)
 {
 #ifdef DELAYEDSERIAL
   if (!useserial) return;
-#endif
-
-#ifdef DEBUG
+#endif\r\n\r\n  if (s)\r\n  {\r\n    int len=strlen(s);\r\n    if (len>0)\r\n      debuglog_append(s, (unsigned int)len);\r\n  }\r\n\r\n#ifdef DEBUG
   #if DISPLAYDEBUG==1
     displayline(s);
   #else
@@ -931,25 +1013,31 @@ void sendstringf_nolock(char *string UNUSED, ...)
 #ifdef DELAYEDSERIAL
   if (!useserial) return;
 #endif
-  nosendchar[getAPICID()]=0;
 
   __builtin_va_list arglist;
   char temps[200];
-  int sl,i;
+  int sl;
 
   __builtin_va_start(arglist,string);
   sl=vbuildstring(temps,200,string,arglist);
   __builtin_va_end(arglist);
 
-  #if DISPLAYDEBUG==1
-    displayline(temps); //instead of sending the output to the serial port, output to the display
-  #else
-    if (sl>0)
-    {
-      for (i=0; i<sl; i++)
-        sendchar(temps[i]);
-    }
-  #endif
+  if (sl>0)
+    debuglog_append(temps, (unsigned int)sl);
+
+  nosendchar[getAPICID()]=0;
+
+#if DISPLAYDEBUG==1
+  if (sl>0)
+    displayline(temps);
+#else
+  if (sl>0)
+  {
+    int i;
+    for (i=0; i<sl; i++)
+      sendchar(temps[i]);
+  }
+#endif
 }
 #endif
 
@@ -959,39 +1047,40 @@ void sendstringf(char *string UNUSED, ...)
   if (!useserial) return;
 #endif
 
-
-#ifdef DEBUG
   __builtin_va_list arglist;
   char temps[200];
-  int sl,i;
-
-  if (nosendchar[getAPICID()])
-      return;
-
-
+  int sl;
 
   __builtin_va_start(arglist,string);
   sl=vbuildstring(temps,200,string,arglist);
   __builtin_va_end(arglist);
 
-  #if DISPLAYDEBUG==1
-    displayline(temps); //instead of sending the output to the serial port, output to the display
-  #else
+  if (sl>0)
+    debuglog_append(temps, (unsigned int)sl);
+
+#ifdef DEBUG
+  if (nosendchar[getAPICID()])
+    return;
+
+#if DISPLAYDEBUG==1
+  if (sl>0)
+    displayline(temps);
+#else
+  if (sl>0)
+  {
+    int i;
     csEnter(&sendstringfCS);
     csEnter(&sendstringCS);
 
-    if (sl>0)
-    {
-      for (i=0; i<sl; i++)
-        sendchar(temps[i]);
-    }
+    for (i=0; i<sl; i++)
+      sendchar(temps[i]);
 
     csLeave(&sendstringCS);
     csLeave(&sendstringfCS);
-  #endif
+  }
+#endif
 #endif
 }
-
 int sprintf(char *str, const char *format, ...)
 {
   __builtin_va_list arglist;
@@ -2003,6 +2092,7 @@ void displayline(char *s, ...)
 
   if (sl>0)
   {
+    debuglog_append(temps, (unsigned int)sl);
 
 #ifdef DEBUG
 #if (DISPLAYDEBUG==0)
@@ -2272,3 +2362,15 @@ void InitCommon()
   if (rcx & (1 << 23))
     popcnt=popcnt_support;
 }
+
+
+
+
+
+
+
+
+
+
+
+

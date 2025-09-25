@@ -121,6 +121,27 @@ typedef struct _stacklist {
 
 void push(PStackList stackobject, void *data, int size);
 int pop(PStackList stackobject, void *data, int size);
+#define DEBUGLOG_BUFFER_SIZE (64*1024)
+#define DEBUGLOG_SNAPSHOT_MAGIC 0x474F4C44 /* 'DLOG' */
+#define DEBUGLOG_SNAPSHOT_VERSION 1
+
+typedef struct __attribute__((__packed__)) _DEBUGLOG_SNAPSHOT{
+  UINT32 magic;
+  UINT32 version;
+  UINT32 bufferSize;
+  UINT32 writeIndex;
+  UINT32 sequence;
+  UINT32 wrapped;
+  UINT32 reserved;
+  UINT64 totalWritten;
+  char   buffer[DEBUGLOG_BUFFER_SIZE];
+} DEBUGLOG_SNAPSHOT, *PDEBUGLOG_SNAPSHOT;
+
+void debuglog_init(void);
+void debuglog_append(const char *text, unsigned int length);
+void debuglog_snapshot(PDEBUGLOG_SNAPSHOT snapshot);
+void debuglog_clear(void);
+
 
 
 typedef union
@@ -711,3 +732,4 @@ int errno; //todo: implement this
 
 
 #endif
+

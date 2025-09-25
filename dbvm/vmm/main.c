@@ -406,6 +406,8 @@ void vmm_entry(void)
   firstcpuinfo=cpuinfo;
   lastaddedcpuinfo=cpuinfo;
 
+debuglog_init();
+
 #if DISPLAYDEBUG==1
   initialize_displaydebuglogs();
 #endif
@@ -2469,3 +2471,5 @@ void startvmx(pcpuinfo currentcpuinfo)
   if (currentcpuinfo->cpunr==0)
     displayline("bye...\n");
 }
+
+

@@ -18,6 +18,14 @@
 #include "epthandler.h"
 #include "displaydebug.h"
 
+typedef struct __attribute__((__packed__)) _VMCALL_DEBUGLOG_PARAM
+{
+  QWORD destination;
+  DWORD size;
+  DWORD flags;
+} VMCALL_DEBUGLOG_PARAM, *PVMCALL_DEBUGLOG_PARAM;
+
+
 
 //#pragma GCC push_options
 //#pragma GCC optimize ("O0")
@@ -404,20 +412,20 @@ int VMCALL_SwitchToKernelMode(pcpuinfo cpuinfo, WORD newCS)
 
 	Access_Rights ar;
 
-	//CS.Selector ¡ç IA32_STAR[47:32] AND FFFCH (* Operating system provides CS; RPL forced to 0 *)
+	//CS.Selector = IA32_STAR[47:32] AND FFFCH (* Operating system provides CS; RPL forced to 0 *)
 	//WORD newCS = (readMSR(IA32_STAR) >> 32) & 0xFFFC;
 
 	ar.AccessRights = 0;
-	ar.Segment_type = 11;		//CS.Type ¡ç 11; (* Execute/read code, accessed *)
-	ar.S = 1;								//CS.S ¡ç 1;
-	ar.DPL = 0;							//CS.DPL ¡ç 0;
-	ar.P = 1;								//CS.P ¡ç 1;
-	ar.L = 1;								//CS.L ¡ç 1; (* Entry is to 64-bit mode *)
-	ar.D_B = 0;							//CS.D ¡ç 0; (* Required if CS.L = 1 *)
-	ar.G = 1;								//CS.G ¡ç 1; (* 4-KByte granularity *)
+	ar.Segment_type = 11;		//CS.Type = 11; (* Execute/read code, accessed *)
+	ar.S = 1;								//CS.S = 1;
+	ar.DPL = 0;							//CS.DPL = 0;
+	ar.P = 1;								//CS.P = 1;
+	ar.L = 1;								//CS.L = 1; (* Entry is to 64-bit mode *)
+	ar.D_B = 0;							//CS.D = 0; (* Required if CS.L = 1 *)
+	ar.G = 1;								//CS.G = 1; (* 4-KByte granularity *)
 
-	//CS.Base ¡ç 0; (* Flat segment *)
-	//CS.Limit ¡ç FFFFFH; (* With 4-KByte granularity, implies a 4-GByte limit *)
+	//CS.Base = 0; (* Flat segment *)
+	//CS.Limit = FFFFFH; (* With 4-KByte granularity, implies a 4-GByte limit *)
 	if(isAMD) {
 		vmcb->cs_selector = newCS;
 		vmcb->cs_base = 0;
@@ -435,16 +443,16 @@ int VMCALL_SwitchToKernelMode(pcpuinfo cpuinfo, WORD newCS)
 		vmwrite(vm_guest_cs_access_rights, ar.AccessRights);
 	}
 
-	//SS.Selector ¡ç CS.Selector + 8
+	//SS.Selector = CS.Selector + 8
 	WORD nesSS = newCS + 8;
 
 	ar.AccessRights = 0;
-	ar.Segment_type = 3;	//SS.Type ¡ç 3; (* Read/write data, accessed *)
-	ar.S = 1;							//SS.S ¡ç 1;
-	ar.DPL = 0;						//SS.DPL ¡ç 0;
-	ar.P = 1;							//SS.P ¡ç 1;
-	ar.D_B = 1;						//SS.B ¡ç 1; (* 32-bit stack segment *)
-	ar.G = 1;							//SS.G ¡ç 1; (* 4-KByte granularity *)
+	ar.Segment_type = 3;	//SS.Type = 3; (* Read/write data, accessed *)
+	ar.S = 1;							//SS.S = 1;
+	ar.DPL = 0;						//SS.DPL = 0;
+	ar.P = 1;							//SS.P = 1;
+	ar.D_B = 1;						//SS.B = 1; (* 32-bit stack segment *)
+	ar.G = 1;							//SS.G = 1; (* 4-KByte granularity *)
 
 	if(isAMD) {
 		vmcb->ss_selector = nesSS;
@@ -454,8 +462,8 @@ int VMCALL_SwitchToKernelMode(pcpuinfo cpuinfo, WORD newCS)
 	}
 	else {
 		vmwrite(vm_guest_ss, newCS + 8);
-		vmwrite(vm_guest_ss_base, 0);					//SS.Base ¡ç 0; (* Flat segment *)
-		vmwrite(vm_guest_ss_limit, 0xFFFFF);	//SS.Limit ¡ç FFFFFH; (* With 4-KByte granularity, implies a 4-GByte limit *)
+		vmwrite(vm_guest_ss_base, 0);					//SS.Base = 0; (* Flat segment *)
+		vmwrite(vm_guest_ss_limit, 0xFFFFF);	//SS.Limit = FFFFFH; (* With 4-KByte granularity, implies a 4-GByte limit *)
 		vmwrite(vm_guest_ss_access_rights, ar.AccessRights);
 	}
 
@@ -488,16 +496,16 @@ int VMCALL_ReturnToUserMode(pcpuinfo cpuinfo) {
 
 	//Restore CS
 	ar.AccessRights = 0;
-	ar.Segment_type = 11;		//CS.Type ¡ç 11; (* Execute/read code, accessed *)
-	ar.S = 1;								//CS.S ¡ç 1;
-	ar.DPL = 3;							//CS.DPL ¡ç 3;
-	ar.P = 1;								//CS.P ¡ç 1;
-	ar.L = 1;								//CS.L ¡ç 1; (* Entry is to 64-bit mode *)
-	ar.D_B = 0;							//CS.D ¡ç 0; (* Required if CS.L = 1 *)
-	ar.G = 1;								//CS.G ¡ç 1; (* 4-KByte granularity *)
+	ar.Segment_type = 11;		//CS.Type = 11; (* Execute/read code, accessed *)
+	ar.S = 1;								//CS.S = 1;
+	ar.DPL = 3;							//CS.DPL = 3;
+	ar.P = 1;								//CS.P = 1;
+	ar.L = 1;								//CS.L = 1; (* Entry is to 64-bit mode *)
+	ar.D_B = 0;							//CS.D = 0; (* Required if CS.L = 1 *)
+	ar.G = 1;								//CS.G = 1; (* 4-KByte granularity *)
 
-	//CS.Base ¡ç 0; (* Flat segment *)
-	//CS.Limit ¡ç FFFFFH; (* With 4-KByte granularity, implies a 4-GByte limit *)
+	//CS.Base = 0; (* Flat segment *)
+	//CS.Limit = FFFFFH; (* With 4-KByte granularity, implies a 4-GByte limit *)
 	if(isAMD) {
 		vmcb->cs_selector = cpuinfo->SwitchKernel.CS;
 		vmcb->cs_base = 0;
@@ -517,12 +525,12 @@ int VMCALL_ReturnToUserMode(pcpuinfo cpuinfo) {
 
 	//Restore SS
 	ar.AccessRights = 0;
-	ar.Segment_type = 3;	//SS.Type ¡ç 3; (* Read/write data, accessed *)
-	ar.S = 1;							//SS.S ¡ç 1;
-	ar.DPL = 3;						//SS.DPL ¡ç 3;
-	ar.P = 1;							//SS.P ¡ç 1;
-	ar.D_B = 1;						//SS.B ¡ç 1; (* 32-bit stack segment *)
-	ar.G = 1;							//SS.G ¡ç 1; (* 4-KByte granularity *)
+	ar.Segment_type = 3;	//SS.Type = 3; (* Read/write data, accessed *)
+	ar.S = 1;							//SS.S = 1;
+	ar.DPL = 3;						//SS.DPL = 3;
+	ar.P = 1;							//SS.P = 1;
+	ar.D_B = 1;						//SS.B = 1; (* 32-bit stack segment *)
+	ar.G = 1;							//SS.G = 1; (* 4-KByte granularity *)
 
 	if(isAMD) {
 		vmcb->ss_selector = cpuinfo->SwitchKernel.SS;
@@ -532,8 +540,8 @@ int VMCALL_ReturnToUserMode(pcpuinfo cpuinfo) {
 	}
 	else {
 		vmwrite(vm_guest_ss, cpuinfo->SwitchKernel.SS);
-		vmwrite(vm_guest_ss_base, 0);					//SS.Base ¡ç 0; (* Flat segment *)
-		vmwrite(vm_guest_ss_limit, 0xFFFFF);	//SS.Limit ¡ç FFFFFH; (* With 4-KByte granularity, implies a 4-GByte limit *)
+		vmwrite(vm_guest_ss_base, 0);					//SS.Base = 0; (* Flat segment *)
+		vmwrite(vm_guest_ss_limit, 0xFFFFF);	//SS.Limit = FFFFFH; (* With 4-KByte granularity, implies a 4-GByte limit *)
 		vmwrite(vm_guest_ss_access_rights, ar.AccessRights);
 	}
 
@@ -2276,6 +2284,47 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
     case VMCALL_USERMODE:
     {
       vmregisters->rax = VMCALL_ReturnToUserMode(currentcpuinfo);
+      break;
+    }
+
+    case VMCALL_DEBUGLOG_SNAPSHOT:
+    {
+      PVMCALL_DEBUGLOG_PARAM param=(PVMCALL_DEBUGLOG_PARAM)vmcall_instruction;
+      int error;
+      QWORD pagefaultaddress;
+      PDEBUGLOG_SNAPSHOT destination;
+
+      if ((param->destination==0) || (param->size<sizeof(DEBUGLOG_SNAPSHOT)))
+      {
+        vmregisters->rax=0;
+        break;
+      }
+
+      destination=(PDEBUGLOG_SNAPSHOT)mapVMmemory(currentcpuinfo, param->destination, param->size, &error, &pagefaultaddress);
+
+      if (error)
+      {
+        if (error==2)
+          return raisePagefault(currentcpuinfo, pagefaultaddress);
+
+        vmregisters->rax=0x100+error;
+        break;
+      }
+
+      debuglog_snapshot(destination);
+      unmapVMmemory(destination, param->size);
+
+      if (param->flags & 1)
+        debuglog_clear();
+
+      vmregisters->rax=1;
+      break;
+    }
+
+    case VMCALL_DEBUGLOG_CLEAR:
+    {
+      debuglog_clear();
+      vmregisters->rax=1;
       break;
     }
 
