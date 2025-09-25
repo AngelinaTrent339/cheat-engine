@@ -139,7 +139,7 @@ typedef struct {
 
 void debuglog_init(void);
 void debuglog_append(const char *text, unsigned int length);
-// extern void debuglog_snapshot(DEBUGLOG_SNAPSHOT *snapshot); // temporarily disabled
+void debuglog_snapshot(DEBUGLOG_SNAPSHOT *snapshot);
 void debuglog_clear(void);
 
 

@@ -62,7 +62,12 @@ int popcnt_nosupport(QWORD val)
 
     if (val==0)
       return result;
-  }\r\n\r\n  return result;\r\n}\r\n\r\nvoid debuglog_init(void)
+  }
+
+  return result;
+}
+
+void debuglog_init(void)
 {
   if (debuglogInitialized)
     return;
@@ -108,8 +113,6 @@ void debuglog_append(const char *text, unsigned int length)
   csLeave(&debuglogCS);
 }
 
-// Temporarily disabled for compilation testing
-/*
 void debuglog_snapshot(DEBUGLOG_SNAPSHOT *snapshot)
 {
   if (snapshot==NULL)
@@ -132,7 +135,6 @@ void debuglog_snapshot(DEBUGLOG_SNAPSHOT *snapshot)
 
   csLeave(&debuglogCS);
 }
-*/
 
 void debuglog_clear(void)
 {
@@ -146,7 +148,9 @@ void debuglog_clear(void)
   debuglogTotalWritten=0;
   debuglogSequence++;
   csLeave(&debuglogCS);
-}\r\n\r\nPOPCNT_IMPLEMENTATION popcnt=popcnt_nosupport;
+}
+
+POPCNT_IMPLEMENTATION popcnt=popcnt_nosupport;
 
 
 
