@@ -75,7 +75,7 @@ extramemory:        dq 0 ;physical address of a contiguous block of physical mem
 extramemorysize:    dq 0 ;number of pages in extramemory
 contiguousmemoryPA: dq 0 ;physical address of a contiguous block of physical memory available for device access
 contiguousmemorysize:dq 0 ;number of pages left in contiguousmemoryPA
-dbvmversion:        dq 19
+dbvmversion:        dq 37
 exportlist:         dq 0
 ;uefibooted:         dq 0 ;if set it means this has to launch the AP cpu's as well
 

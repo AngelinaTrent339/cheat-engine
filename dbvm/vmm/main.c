@@ -298,8 +298,8 @@ void vmm_entry(void)
   InitCommon();
 
   // OBFUSCATED CUSTOM PASSWORDS - different lengths and patterns to avoid detection
-  const QWORD XOR_MASK_1 = 0xDEADBEEFCAFEBABEULL;
-  const QWORD XOR_MASK_2 = 0x1337C0DE;
+  const QWORD XOR_MASK_1 = 0xDEADBE7FCAFEBABEULL;
+  const QWORD XOR_MASK_2 = 0x133701DE;
   const QWORD XOR_MASK_3 = 0xFEEDFACE13377331ULL;
   
   // Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
@@ -328,7 +328,7 @@ void vmm_entry(void)
    * 16=3th vmcall password
    * 19=signature update
    */
-  dbvmversion=19;
+  dbvmversion=37;
   int1redirection=1; //redirect to int vector 1 (might change this to the perfcounter interrupt in the future so I don't have to deal with interrupt prologue/epilogue)
   int3redirection=3;
   int14redirection=14;

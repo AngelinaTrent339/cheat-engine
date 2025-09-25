@@ -2836,8 +2836,8 @@ begin
     Outputdebugstring('LaunchDBVM');
 
     // OBFUSCATED CUSTOM PASSWORDS - same as DBVM but protected from memory scanning  
-    XOR_MASK_1 := $DEADBEEFCAFEBABE;
-    XOR_MASK_2 := $1337C0DE;
+    XOR_MASK_1 := $DEADBE7FCAFEBABE;
+    XOR_MASK_2 := $133701DE;
     XOR_MASK_3 := $FEEDFACE13377331;
     
     // Real passwords: $13371337DEADC0DE, $BEEF, $CAFEBABE13371337
