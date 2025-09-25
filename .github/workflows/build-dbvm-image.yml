@@ -1,43 +1,51 @@
-name: Build DBVM Toolchain Image
+name: Build DBVM
 
 on:
   workflow_dispatch:
   push:
     branches: [ master ]
     paths:
-      - 'docker/dbvm-build.Dockerfile'
-      - '.github/workflows/build-dbvm-image.yml'
+      - 'dbvm/**'
+      - '.github/workflows/build-dbvm.yml'
 
-permissions:
-  contents: read
-  packages: write
+permissions: read-all
+
+concurrency:
+  group: dbvm-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-push:
+  build-dbvm:
     runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
+    timeout-minutes: 30
 
-      # Make a lowercase owner once, reuse everywhere.
+    steps:
+      - name: Checkout (shallow)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Make lowercase repo owner
       - name: Lowercase owner
         id: who
-        shell: bash
-        run: |
-          owner="${{ github.repository_owner }}"
-          echo "owner_lc=${owner,,}" >> "$GITHUB_OUTPUT"
+        run: echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Set up container
+        uses: addnab/docker-run-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ steps.who.outputs.owner_lc }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          image: ghcr.io/${{ steps.who.outputs.owner_lc }}/dbvm-build:jammy-gcc9-1
+          options: -v ${{ github.workspace }}:/workspace
+          run: |
+            cd /workspace/dbvm
+            make clean
+            make install
 
-      - name: Build & push
-        uses: docker/build-push-action@v6
+      - name: Upload DBVM artifacts
+        uses: actions/upload-artifact@v4
         with:
-          context: .
-          file: docker/dbvm-build.Dockerfile
-          push: true
-          tags: ghcr.io/${{ steps.who.outputs.owner_lc }}/dbvm-build:jammy-gcc9-1
-          provenance: false
+          name: DBVM-${{ github.sha }}
+          path: |
+            dbvm/vmdisk.img
+            dbvm/vmdisk144.img
+            dbvm/**/*.bin
+          if-no-files-found: warn
