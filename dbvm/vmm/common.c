@@ -108,6 +108,8 @@ void debuglog_append(const char *text, unsigned int length)
   csLeave(&debuglogCS);
 }
 
+// Temporarily disabled for compilation testing
+/*
 void debuglog_snapshot(DEBUGLOG_SNAPSHOT *snapshot)
 {
   if (snapshot==NULL)
@@ -130,6 +132,7 @@ void debuglog_snapshot(DEBUGLOG_SNAPSHOT *snapshot)
 
   csLeave(&debuglogCS);
 }
+*/
 
 void debuglog_clear(void)
 {

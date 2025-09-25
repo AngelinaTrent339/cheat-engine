@@ -2311,7 +2311,7 @@ int _handleVMCallInstruction(pcpuinfo currentcpuinfo, VMRegisters *vmregisters, 
         break;
       }
 
-      debuglog_snapshot(destination);
+      //debuglog_snapshot(destination); // temporarily disabled for compilation
       unmapVMmemory(destination, param->size);
 
       if (param->flags & 1)
