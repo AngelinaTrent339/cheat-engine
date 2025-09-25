@@ -284,8 +284,8 @@ Runs at passive mode
 	vmm = MmMapLockedPagesSpecifyCache(DBVMMDL, KernelMode, MmCached, NULL, FALSE, 0);
 	
 	// OBFUSCATED CUSTOM PASSWORDS - same as DBVM but protected from memory scanning
-	const QWORD XOR_MASK_1 = 0xDEADBEEFCAFEBABEULL;
-	const QWORD XOR_MASK_2 = 0x1337C0DE;
+	const QWORD XOR_MASK_1 = 0xDEADBE7FCAFEBABEULL;
+	const QWORD XOR_MASK_2 = 0x133701DE;
 	const QWORD XOR_MASK_3 = 0xFEEDFACE13377331ULL;
 	
 	// Real passwords: 0x13371337DEADC0DE, 0xBEEF, 0xCAFEBABE13371337
