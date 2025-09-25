@@ -10,60 +10,52 @@ on:
 
 permissions: read-all
 
+concurrency:
+  group: dbvm-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-dbvm:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    
-    steps:
-      - name: Install basic tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            git \
-            ca-certificates
 
-      - name: Checkout
+    # <- all deps already baked in here
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/dbvm-build:jammy-gcc9-1
+
+    steps:
+      - name: Checkout (shallow)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get install -y --no-install-recommends \
-            gcc-9 \
-            g++-9 \
-            gcc-9-multilib \
-            g++-9-multilib \
-            build-essential \
-            yasm \
-            nasm \
-            make \
-            libc6-dev-i386
+      - name: Prime ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-dbvm-${{ runner.os }}-gcc9-${{ github.ref_name }}-${{ hashFiles('dbvm/**/*') }}
+          restore-keys: |
+            ccache-dbvm-${{ runner.os }}-gcc9-
 
-      - name: Verify compiler versions
+      - name: Versions
         run: |
-          gcc-9 --version
-          g++-9 --version
+          gcc --version
+          g++ --version
           yasm --version
           nasm --version
           make --version
-
-      - name: Set GCC 9 as default
-        run: |
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90
-          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 90
-          gcc --version
-          g++ --version
+          ccache --version || true
 
       - name: Build DBVM
+        env:
+          CC: gcc
+          CXX: g++
+          MAKEFLAGS: -j$(nproc)
         run: |
           cd dbvm
           make clean
           make install
-        env:
-          CC: gcc-9
-          CXX: g++-9
+          ccache -s || true
 
       - name: List build outputs
         run: |
