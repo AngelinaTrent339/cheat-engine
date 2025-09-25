@@ -135,11 +135,13 @@ typedef struct _DEBUGLOG_SNAPSHOT{
   UINT32 reserved;
   UINT64 totalWritten;
   char   buffer[DEBUGLOG_BUFFER_SIZE];
-} DEBUGLOG_SNAPSHOT, *PDEBUGLOG_SNAPSHOT;
+} DEBUGLOG_SNAPSHOT;
+
+typedef DEBUGLOG_SNAPSHOT *PDEBUGLOG_SNAPSHOT;
 
 void debuglog_init(void);
 void debuglog_append(const char *text, unsigned int length);
-void debuglog_snapshot(PDEBUGLOG_SNAPSHOT snapshot);
+void debuglog_snapshot(DEBUGLOG_SNAPSHOT *snapshot);
 void debuglog_clear(void);
 
 
