@@ -125,7 +125,7 @@ int pop(PStackList stackobject, void *data, int size);
 #define DEBUGLOG_SNAPSHOT_MAGIC 0x474F4C44 /* 'DLOG' */
 #define DEBUGLOG_SNAPSHOT_VERSION 1
 
-struct DEBUGLOG_SNAPSHOT{
+typedef struct {
   UINT32 magic;
   UINT32 version;
   UINT32 bufferSize;
@@ -135,11 +135,11 @@ struct DEBUGLOG_SNAPSHOT{
   UINT32 reserved;
   UINT64 totalWritten;
   char   buffer[DEBUGLOG_BUFFER_SIZE];
-};
+} DEBUGLOG_SNAPSHOT;
 
 void debuglog_init(void);
 void debuglog_append(const char *text, unsigned int length);
-void debuglog_snapshot(struct DEBUGLOG_SNAPSHOT *snapshot);
+void debuglog_snapshot(DEBUGLOG_SNAPSHOT *snapshot);
 void debuglog_clear(void);
 
 
